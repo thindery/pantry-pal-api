@@ -6,6 +6,7 @@
 
 import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import { runMigrations } from './db/migrate';
 import {
   PantryItem,
   PantryItemRow,
@@ -36,6 +37,9 @@ let db: Database.Database | null = null;
  */
 export function getDatabase(): Database.Database {
   if (!db) {
+    // Run migrations first to ensure schema is up-to-date
+    runMigrations(DB_PATH);
+
     db = new Database(DB_PATH, {
       verbose: isDevelopment ? console.log : undefined,
     });
@@ -44,7 +48,7 @@ export function getDatabase(): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
-    // Initialize schema
+    // Initialize schema (creates new tables if they don't exist)
     initializeSchema();
   }
 
@@ -73,11 +77,13 @@ export function closeDatabase(): void {
 function initializeSchema(): void {
   if (!db) throw new Error('Database not initialized');
 
-  // Pantry items table
+  // Pantry items table with user_id column
   db.exec(`
     CREATE TABLE IF NOT EXISTS pantry_items (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       name TEXT NOT NULL,
+      barcode TEXT,
       quantity REAL NOT NULL DEFAULT 0,
       unit TEXT NOT NULL,
       category TEXT NOT NULL,
@@ -86,10 +92,11 @@ function initializeSchema(): void {
     );
   `);
 
-  // Activities table with foreign key to pantry_items
+  // Activities table with user_id column and foreign key to pantry_items
   db.exec(`
     CREATE TABLE IF NOT EXISTS activities (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       item_id TEXT NOT NULL REFERENCES pantry_items(id) ON DELETE CASCADE,
       item_name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('ADD', 'REMOVE', 'ADJUST')),
@@ -102,8 +109,11 @@ function initializeSchema(): void {
 
   // Indexes for performance
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
     CREATE INDEX IF NOT EXISTS idx_pantry_items_category ON pantry_items(category);
     CREATE INDEX IF NOT EXISTS idx_pantry_items_name ON pantry_items(name);
+    CREATE INDEX IF NOT EXISTS idx_pantry_items_barcode ON pantry_items(barcode);
+    CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id);
     CREATE INDEX IF NOT EXISTS idx_activities_item_id ON activities(item_id);
     CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp DESC);
     CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
@@ -116,10 +126,12 @@ function initializeSchema(): void {
 // Row Mappers
 // ============================================================================
 
-function mapPantryItemRow(row: PantryItemRow): PantryItem {
+function mapPantryItemRow(row: PantryItemRow & { barcode?: string }): PantryItem {
   return {
     id: row.id,
+    userId: row.user_id,
     name: row.name,
+    barcode: row.barcode,
     quantity: row.quantity,
     unit: row.unit,
     category: row.category,
@@ -130,6 +142,7 @@ function mapPantryItemRow(row: PantryItemRow): PantryItem {
 function mapActivityRow(row: ActivityRow): Activity {
   return {
     id: row.id,
+    userId: row.user_id,
     itemId: row.item_id,
     itemName: row.item_name,
     type: row.type,
@@ -144,16 +157,16 @@ function mapActivityRow(row: ActivityRow): Activity {
 // ============================================================================
 
 /**
- * Get all pantry items with optional filtering
+ * Get all pantry items for a user with optional filtering
  */
-export function getAllItems(category?: string): PantryItem[] {
+export function getAllItems(userId: string, category?: string): PantryItem[] {
   const database = getDatabase();
 
-  let query = 'SELECT * FROM pantry_items';
-  const params: string[] = [];
+  let query = 'SELECT * FROM pantry_items WHERE user_id = ?';
+  const params: (string | undefined)[] = [userId];
 
   if (category) {
-    query += ' WHERE category = ?';
+    query += ' AND category = ?';
     params.push(category);
   }
 
@@ -166,27 +179,27 @@ export function getAllItems(category?: string): PantryItem[] {
 }
 
 /**
- * Get a single pantry item by ID
+ * Get a single pantry item by ID (for a specific user)
  */
-export function getItemById(id: string): PantryItem | null {
+export function getItemById(userId: string, id: string): PantryItem | null {
   const database = getDatabase();
 
-  const stmt = database.prepare('SELECT * FROM pantry_items WHERE id = ?');
-  const row = stmt.get(id) as PantryItemRow | undefined;
+  const stmt = database.prepare('SELECT * FROM pantry_items WHERE user_id = ? AND id = ?');
+  const row = stmt.get(userId, id) as PantryItemRow | undefined;
 
   return row ? mapPantryItemRow(row) : null;
 }
 
 /**
- * Get a pantry item by name (case-insensitive)
+ * Get a pantry item by name (case-insensitive) for a specific user
  */
-export function getItemByName(name: string): PantryItem | null {
+export function getItemByName(userId: string, name: string): PantryItem | null {
   const database = getDatabase();
 
   const stmt = database.prepare(
-    'SELECT * FROM pantry_items WHERE LOWER(name) = LOWER(?)'
+    'SELECT * FROM pantry_items WHERE user_id = ? AND LOWER(name) = LOWER(?)'
   );
-  const row = stmt.get(name) as PantryItemRow | undefined;
+  const row = stmt.get(userId, name) as PantryItemRow | undefined;
 
   return row ? mapPantryItemRow(row) : null;
 }
@@ -199,6 +212,7 @@ export interface CreateItemInput {
   quantity: number;
   unit: string;
   category: string;
+  barcode?: string;
 }
 
 /**
@@ -206,30 +220,33 @@ export interface CreateItemInput {
  */
 export interface UpdateItemInput {
   name?: string;
+  barcode?: string;
   quantity?: number;
   unit?: string;
   category?: string;
 }
 
 /**
- * Create a new pantry item
+ * Create a new pantry item for a user
  */
-export function createItem(input: CreateItemInput): PantryItem {
+export function createItem(userId: string, input: CreateItemInput): PantryItem {
   const database = getDatabase();
 
   const id = uuidv4();
   const now = new Date().toISOString();
 
   const stmt = database.prepare(`
-    INSERT INTO pantry_items (id, name, quantity, unit, category, last_updated)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO pantry_items (id, user_id, name, barcode, quantity, unit, category, last_updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(id, input.name, input.quantity, input.unit, input.category, now);
+  stmt.run(id, userId, input.name, input.barcode || null, input.quantity, input.unit, input.category, now);
 
   return {
     id,
+    userId,
     name: input.name,
+    barcode: input.barcode,
     quantity: input.quantity,
     unit: input.unit,
     category: input.category,
@@ -238,25 +255,28 @@ export function createItem(input: CreateItemInput): PantryItem {
 }
 
 /**
- * Update an existing pantry item
+ * Update an existing pantry item for a user
  * Returns null if item not found
  */
-export function updateItem(id: string, input: UpdateItemInput): PantryItem | null {
-  // Type assertion ensures compatibility with both CreateItemInput from validation.ts and db.ts UpdateItemInput
+export function updateItem(userId: string, id: string, input: UpdateItemInput): PantryItem | null {
   const database = getDatabase();
 
-  const existing = getItemById(id);
+  const existing = getItemById(userId, id);
   if (!existing) return null;
 
   const now = new Date().toISOString();
 
   // Build dynamic update query
   const updates: string[] = [];
-  const params: (string | number)[] = [];
+  const params: (string | number | null)[] = [];
 
   if (input.name !== undefined) {
     updates.push('name = ?');
     params.push(input.name);
+  }
+  if (input.barcode !== undefined) {
+    updates.push('barcode = ?');
+    params.push(input.barcode || null);
   }
   if (input.quantity !== undefined) {
     updates.push('quantity = ?');
@@ -275,39 +295,41 @@ export function updateItem(id: string, input: UpdateItemInput): PantryItem | nul
   updates.push('last_updated = ?');
   params.push(now);
 
-  // Add id to params
+  // Add user_id and id to params for WHERE clause
+  params.push(userId);
   params.push(id);
 
-  const query = `UPDATE pantry_items SET ${updates.join(', ')} WHERE id = ?`;
+  const query = `UPDATE pantry_items SET ${updates.join(', ')} WHERE user_id = ? AND id = ?`;
   const stmt = database.prepare(query);
   stmt.run(...params);
 
-  return getItemById(id);
+  return getItemById(userId, id);
 }
 
 /**
- * Delete a pantry item by ID
+ * Delete a pantry item by ID for a user
  * Returns true if deleted, false if not found
  */
-export function deleteItem(id: string): boolean {
+export function deleteItem(userId: string, id: string): boolean {
   const database = getDatabase();
 
-  const stmt = database.prepare('DELETE FROM pantry_items WHERE id = ?');
-  const result = stmt.run(id);
+  const stmt = database.prepare('DELETE FROM pantry_items WHERE user_id = ? AND id = ?');
+  const result = stmt.run(userId, id);
 
   return result.changes > 0;
 }
 
 /**
- * Adjust item quantity directly (used by activity logging)
+ * Adjust item quantity directly for a user (used by activity logging)
  */
 export function adjustItemQuantity(
+  userId: string,
   id: string,
   adjustment: number
 ): PantryItem | null {
   const database = getDatabase();
 
-  const existing = getItemById(id);
+  const existing = getItemById(userId, id);
   if (!existing) return null;
 
   const newQuantity = Math.max(0, existing.quantity + adjustment);
@@ -316,24 +338,24 @@ export function adjustItemQuantity(
   const stmt = database.prepare(`
     UPDATE pantry_items 
     SET quantity = ?, last_updated = ? 
-    WHERE id = ?
+    WHERE user_id = ? AND id = ?
   `);
 
-  stmt.run(newQuantity, now, id);
+  stmt.run(newQuantity, now, userId, id);
 
-  return getItemById(id);
+  return getItemById(userId, id);
 }
 
 /**
- * Get all unique categories
+ * Get all unique categories for a user
  */
-export function getCategories(): string[] {
+export function getCategories(userId: string): string[] {
   const database = getDatabase();
 
   const stmt = database.prepare(
-    'SELECT DISTINCT category FROM pantry_items ORDER BY category COLLATE NOCASE'
+    'SELECT DISTINCT category FROM pantry_items WHERE user_id = ? ORDER BY category COLLATE NOCASE'
   );
-  const rows = stmt.all() as { category: string }[];
+  const rows = stmt.all(userId) as { category: string }[];
 
   return rows.map((r) => r.category);
 }
@@ -343,20 +365,21 @@ export function getCategories(): string[] {
 // ============================================================================
 
 /**
- * Get all activities with pagination
+ * Get all activities for a user with pagination
  */
 export function getActivities(
+  userId: string,
   limit: number = 20,
   offset: number = 0,
   itemId?: string
 ): Activity[] {
   const database = getDatabase();
 
-  let query = 'SELECT * FROM activities';
-  const params: (string | number)[] = [];
+  let query = 'SELECT * FROM activities WHERE user_id = ?';
+  const params: (string | number)[] = [userId];
 
   if (itemId) {
-    query += ' WHERE item_id = ?';
+    query += ' AND item_id = ?';
     params.push(itemId);
   }
 
@@ -370,16 +393,16 @@ export function getActivities(
 }
 
 /**
- * Get total count of activities (for pagination)
+ * Get total count of activities for a user (for pagination)
  */
-export function getActivityCount(itemId?: string): number {
+export function getActivityCount(userId: string, itemId?: string): number {
   const database = getDatabase();
 
-  let query = 'SELECT COUNT(*) as count FROM activities';
-  const params: string[] = [];
+  let query = 'SELECT COUNT(*) as count FROM activities WHERE user_id = ?';
+  const params: string[] = [userId];
 
   if (itemId) {
-    query += ' WHERE item_id = ?';
+    query += ' AND item_id = ?';
     params.push(itemId);
   }
 
@@ -390,10 +413,11 @@ export function getActivityCount(itemId?: string): number {
 }
 
 /**
- * Log a new activity and update item quantity
+ * Log a new activity for a user and update item quantity
  * This is a transaction to ensure data consistency
  */
 export function logActivity(
+  userId: string,
   itemId: string,
   type: ActivityType,
   amount: number,
@@ -401,7 +425,7 @@ export function logActivity(
 ): Activity | null {
   const database = getDatabase();
 
-  const item = getItemById(itemId);
+  const item = getItemById(userId, itemId);
   if (!item) return null;
 
   const id = uuidv4();
@@ -431,24 +455,25 @@ export function logActivity(
   const transaction = database.transaction(() => {
     // Create activity record with denormalized item name
     const activityStmt = database.prepare(`
-      INSERT INTO activities (id, item_id, item_name, type, amount, timestamp, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    activityStmt.run(id, itemId, item.name, type, actualAmount, now, source);
+    activityStmt.run(id, userId, itemId, item.name, type, actualAmount, now, source);
 
     // Update item quantity
     const newQuantity = Math.max(0, item.quantity + quantityAdjustment);
     const updateStmt = database.prepare(`
       UPDATE pantry_items 
       SET quantity = ?, last_updated = ? 
-      WHERE id = ?
+      WHERE user_id = ? AND id = ?
     `);
 
-    updateStmt.run(newQuantity, now, itemId);
+    updateStmt.run(newQuantity, now, userId, itemId);
 
     return {
       id,
+      userId,
       itemId,
       itemName: item.name,
       type,
@@ -537,10 +562,11 @@ function inferCategory(name: string): string {
 // ============================================================================
 
 /**
- * Process visual usage detection results
+ * Process visual usage detection results for a user
  * Creates REMOVE activities for detected usage
  */
 export function processVisualUsage(
+  userId: string,
   detections: UsageResult[],
   source: string = 'VISUAL_USAGE'
 ): { processed: UsageResult[]; activities: Activity[]; errors: string[] } {
@@ -551,8 +577,8 @@ export function processVisualUsage(
   };
 
   for (const detection of detections) {
-    // Try to find matching item by name
-    const item = getItemByName(detection.name);
+    // Try to find matching item by name for this user
+    const item = getItemByName(userId, detection.name);
 
     if (!item) {
       results.errors.push(`Item not found: ${detection.name}`);
@@ -561,6 +587,7 @@ export function processVisualUsage(
 
     // Create REMOVE activity
     const activity = logActivity(
+      userId,
       item.id,
       'REMOVE',
       detection.quantityUsed,

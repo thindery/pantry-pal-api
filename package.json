@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "seed": "ts-node src/db/seed.ts",
-    "db:init": "ts-node src/db/init.ts",
+    "db:migrate": "ts-node src/db/migrate.ts",
+    "db:init": "npm run db:migrate && npm run seed",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -21,6 +22,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "better-sqlite3": "11.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
