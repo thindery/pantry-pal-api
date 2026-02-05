@@ -7,6 +7,8 @@ export interface PantryItem {
     unit: string;
     category: string;
     lastUpdated: string;
+    userId: string;
+    barcode?: string;
 }
 export interface PantryItemRow {
     id: string;
@@ -15,6 +17,7 @@ export interface PantryItemRow {
     unit: string;
     category: string;
     last_updated: string;
+    user_id: string;
 }
 export interface Activity {
     id: string;
@@ -24,6 +27,7 @@ export interface Activity {
     amount: number;
     timestamp: string;
     source: ActivitySource;
+    userId: string;
 }
 export interface ActivityRow {
     id: string;
@@ -33,6 +37,7 @@ export interface ActivityRow {
     amount: number;
     timestamp: string;
     source: ActivitySource;
+    user_id: string;
 }
 export interface ScanResult {
     name: string;

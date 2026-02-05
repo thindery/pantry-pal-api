@@ -2,6 +2,7 @@
  * Scan API Routes
  * Endpoints for receipt scanning and visual usage detection
  * Integrates with AI/ML services for automated inventory management
+ * All routes require authentication
  */
 
 import { Router } from 'express';
@@ -12,6 +13,7 @@ import {
   getItemByName,
   logActivity,
 } from '../db';
+import { requireAuth } from '../middleware/auth';
 import { ApiResponse, ScanResult } from '../models/types';
 import {
   scanReceiptSchema,
@@ -19,6 +21,9 @@ import {
 } from '../models/validation';
 
 const router = Router();
+
+// Apply auth middleware to all routes
+router.use(requireAuth);
 
 // ============================================================================
 // Helper Functions
@@ -105,6 +110,7 @@ router.post('/scan-receipt', (req, res) => {
  */
 router.post('/scan-receipt/import', async (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = scanReceiptSchema.safeParse(req.body);
 
     if (!validation.success) {
@@ -125,12 +131,12 @@ router.post('/scan-receipt/import', async (req, res) => {
 
     for (const scanResult of results) {
       try {
-        // Check if item already exists
-        let item = getItemByName(scanResult.name);
+        // Check if item already exists for this user
+        let item = getItemByName(userId, scanResult.name);
 
         if (!item) {
           // Create new item
-          item = createItem({
+          item = createItem(userId, {
             name: scanResult.name,
             quantity: 0,
             unit: scanResult.unit || 'pieces',
@@ -140,6 +146,7 @@ router.post('/scan-receipt/import', async (req, res) => {
 
         // Log ADD activity
         const activity = logActivity(
+          userId,
           item.id,
           'ADD',
           scanResult.quantity,
@@ -188,6 +195,7 @@ router.post('/scan-receipt/import', async (req, res) => {
  */
 router.post('/visual-usage', (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = visualUsageSchema.safeParse(req.body);
 
     if (!validation.success) {
@@ -203,7 +211,7 @@ router.post('/visual-usage', (req, res) => {
     const source = detectionSource || 'VISUAL_USAGE';
 
     // Process detections and create activities
-    const results = processVisualUsage(detections, source);
+    const results = processVisualUsage(userId, detections, source);
 
     res.json(
       successResponse(

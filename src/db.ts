@@ -7,6 +7,7 @@
 import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { runMigrations } from './db/migrate';
+import { initializeSubscriptionSchema } from './services/subscription';
 import {
   PantryItem,
   PantryItemRow,
@@ -50,6 +51,7 @@ export function getDatabase(): Database.Database {
 
     // Initialize schema (creates new tables if they don't exist)
     initializeSchema();
+    initializeSubscriptionSchema(db);
   }
 
   return db;

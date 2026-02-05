@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = require("../db");
+const auth_1 = require("../middleware/auth");
 const validation_1 = require("../models/validation");
 const router = (0, express_1.Router)();
+router.use(auth_1.requireAuth);
 function successResponse(data, meta) {
     return {
         success: true,
@@ -54,6 +56,7 @@ router.post('/scan-receipt', (req, res) => {
 });
 router.post('/scan-receipt/import', async (req, res) => {
     try {
+        const userId = req.userId;
         const validation = validation_1.scanReceiptSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid request body', {
@@ -67,16 +70,16 @@ router.post('/scan-receipt/import', async (req, res) => {
         const errors = [];
         for (const scanResult of results) {
             try {
-                let item = (0, db_1.getItemByName)(scanResult.name);
+                let item = (0, db_1.getItemByName)(userId, scanResult.name);
                 if (!item) {
-                    item = (0, db_1.createItem)({
+                    item = (0, db_1.createItem)(userId, {
                         name: scanResult.name,
                         quantity: 0,
                         unit: scanResult.unit || 'pieces',
                         category: scanResult.category || 'general',
                     });
                 }
-                const activity = (0, db_1.logActivity)(item.id, 'ADD', scanResult.quantity, 'RECEIPT_SCAN');
+                const activity = (0, db_1.logActivity)(userId, item.id, 'ADD', scanResult.quantity, 'RECEIPT_SCAN');
                 if (activity) {
                     imported.push({
                         itemId: item.id,
@@ -108,6 +111,7 @@ router.post('/scan-receipt/import', async (req, res) => {
 });
 router.post('/visual-usage', (req, res) => {
     try {
+        const userId = req.userId;
         const validation = validation_1.visualUsageSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid request body', {
@@ -117,7 +121,7 @@ router.post('/visual-usage', (req, res) => {
         }
         const { detections, detectionSource } = validation.data;
         const source = detectionSource || 'VISUAL_USAGE';
-        const results = (0, db_1.processVisualUsage)(detections, source);
+        const results = (0, db_1.processVisualUsage)(userId, detections, source);
         res.json(successResponse({
             processed: results.processed,
             activities: results.activities,

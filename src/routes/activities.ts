@@ -1,6 +1,7 @@
 /**
  * Activity API Routes
  * Endpoints for logging and retrieving inventory change activities
+ * All routes require authentication
  */
 
 import { Router } from 'express';
@@ -9,6 +10,7 @@ import {
   getActivityCount,
   logActivity,
 } from '../db';
+import { requireAuth } from '../middleware/auth';
 import { ApiResponse } from '../models/types';
 import {
   createActivitySchema,
@@ -17,6 +19,9 @@ import {
 } from '../models/validation';
 
 const router = Router();
+
+// Apply auth middleware to all routes
+router.use(requireAuth);
 
 // ============================================================================
 // Helper Functions
@@ -53,11 +58,12 @@ function errorResponse(code: string, message: string, details?: Record<string, u
 
 /**
  * GET /api/activities
- * List recent activity with pagination
+ * List recent activity for the authenticated user with pagination
  * Query params: page, limit, itemId
  */
 router.get('/', (req, res) => {
   try {
+    const userId = req.userId!;
     const pagination = paginationSchema.safeParse(req.query);
     const { itemId } = req.query as { itemId?: string };
 
@@ -75,8 +81,8 @@ router.get('/', (req, res) => {
     const limit = pagination.success ? pagination.data.limit : 20;
     const offset = (page - 1) * limit;
 
-    const activities = getActivities(limit, offset, itemId);
-    const total = getActivityCount(itemId);
+    const activities = getActivities(userId, limit, offset, itemId);
+    const total = getActivityCount(userId, itemId);
 
     res.json(
       successResponse(activities, {
@@ -96,11 +102,12 @@ router.get('/', (req, res) => {
 
 /**
  * POST /api/activities
- * Log a new activity (ADD, REMOVE, or ADJUST)
+ * Log a new activity for the authenticated user (ADD, REMOVE, or ADJUST)
  * Automatically updates the associated item's quantity
  */
 router.post('/', (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = createActivitySchema.safeParse(req.body);
 
     if (!validation.success) {
@@ -114,7 +121,7 @@ router.post('/', (req, res) => {
 
     const { itemId, type, amount, source } = validation.data;
 
-    const activity = logActivity(itemId, type, amount, source);
+    const activity = logActivity(userId, itemId, type, amount, source);
 
     if (!activity) {
       res.status(404).json(

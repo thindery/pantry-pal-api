@@ -8,6 +8,13 @@ import { getDatabase, closeDatabase, createItem, logActivity } from '../db';
 import { ActivityType, ActivitySource } from '../models/types';
 
 // ============================================================================
+// Configuration
+// ============================================================================
+
+// Default seed user ID (for development)
+const SEED_USER_ID = process.env.SEED_USER_ID || 'seed_user_test_123';
+
+// ============================================================================
 // Sample Data
 // ============================================================================
 
@@ -75,22 +82,22 @@ const sampleItems = [
  * Clear existing data and reset database
  */
 function clearDatabase(): void {
-  const db = getDatabase();
+  const database = getDatabase();
   
   console.log('[SEED] Clearing existing data...');
   
   // Disable foreign key constraints temporarily
-  db.exec('PRAGMA foreign_keys = OFF;');
+  database.exec('PRAGMA foreign_keys = OFF;');
   
   // Clear tables
-  db.exec('DELETE FROM activities;');
-  db.exec('DELETE FROM pantry_items;');
+  database.exec('DELETE FROM activities;');
+  database.exec('DELETE FROM pantry_items;');
   
   // Vacuum to reclaim space
-  db.exec('VACUUM;');
+  database.exec('VACUUM;');
   
   // Re-enable foreign keys
-  db.exec('PRAGMA foreign_keys = ON;');
+  database.exec('PRAGMA foreign_keys = ON;');
   
   console.log('[SEED] Database cleared');
 }
@@ -99,12 +106,12 @@ function clearDatabase(): void {
  * Seed pantry items
  */
 function seedItems(): string[] {
-  console.log(`[SEED] Creating ${sampleItems.length} pantry items...`);
+  console.log(`[SEED] Creating ${sampleItems.length} pantry items for user ${SEED_USER_ID}...`);
   
   const itemIds: string[] = [];
   
   for (const item of sampleItems) {
-    const created = createItem(item);
+    const created = createItem(SEED_USER_ID, item);
     itemIds.push(created.id);
   }
   
@@ -165,6 +172,7 @@ function seedActivities(itemIds: string[]): void {
   let successCount = 0;
   for (const activity of activities) {
     const logged = logActivity(
+      SEED_USER_ID,
       activity.itemId,
       activity.type,
       activity.amount,
@@ -180,15 +188,16 @@ function seedActivities(itemIds: string[]): void {
  * Print summary statistics
  */
 function printSummary(): void {
-  const db = getDatabase();
+  const database = getDatabase();
   
-  const itemCount = (db.prepare('SELECT COUNT(*) as count FROM pantry_items').get() as { count: number }).count;
-  const activityCount = (db.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }).count;
-  const categoryCount = (db.prepare('SELECT COUNT(DISTINCT category) as count FROM pantry_items').get() as { count: number }).count;
+  const itemCount = (database.prepare('SELECT COUNT(*) as count FROM pantry_items').get() as { count: number }).count;
+  const activityCount = (database.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }).count;
+  const categoryCount = (database.prepare('SELECT COUNT(DISTINCT category) as count FROM pantry_items').get() as { count: number }).count;
   
   console.log('\n[SEED] ===========================================');
   console.log('[SEED] Seed Summary');
   console.log('[SEED] ===========================================');
+  console.log(`[SEED] User ID:          ${SEED_USER_ID}`);
   console.log(`[SEED] Total Items:      ${itemCount}`);
   console.log(`[SEED] Total Activities: ${activityCount}`);
   console.log(`[SEED] Categories:       ${categoryCount}`);
@@ -196,12 +205,13 @@ function printSummary(): void {
   
   // Show category breakdown
   console.log('[SEED] Category Breakdown:');
-  const categories = db.prepare(`
+  const categories = database.prepare(`
     SELECT category, COUNT(*) as count, SUM(quantity) as total_quantity
     FROM pantry_items
+    WHERE user_id = ?
     GROUP BY category
     ORDER BY count DESC
-  `).all() as Array<{ category: string; count: number; total_quantity: number }>;
+  `).all(SEED_USER_ID) as Array<{ category: string; count: number; total_quantity: number }>;
   
   for (const cat of categories) {
     console.log(`[SEED]   - ${cat.category}: ${cat.count} items (${Math.round(cat.total_quantity * 10) / 10} total)`);

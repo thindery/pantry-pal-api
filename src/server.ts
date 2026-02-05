@@ -1,13 +1,16 @@
 /**
  * Pantry Tracker API Server
- * Production-ready Express server with security, error handling, and graceful shutdown
+ * Production-ready Express server with HTTPS support for local development,
+ * security, error handling, and graceful shutdown
  */
 
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import path from 'path';
 
 // Import database initialization
 import { getDatabase, closeDatabase } from './db';
@@ -16,6 +19,11 @@ import { getDatabase, closeDatabase } from './db';
 import itemsRouter from './routes/items';
 import activitiesRouter from './routes/activities';
 import scanRouter from './routes/scan';
+import subscriptionRouter from './routes/subscription';
+import webhookRouter from './routes/webhook';
+
+// Import services
+import { ensureStripeProducts } from './services/stripe';
 
 // Load environment variables
 const envPath = path.resolve(process.cwd(), '.env');
@@ -25,16 +33,25 @@ dotenv.config({ path: envPath });
 // Configuration
 // ============================================================================
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isDevelopment = NODE_ENV === 'development';
+const USE_HTTPS = process.env.USE_HTTPS !== 'false'; // Default to HTTPS
 
-// CORS configuration
+// CORS configuration - allow both localhost and the local IP
 const CORS_ORIGINS = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
   : isDevelopment
-  ? true // Allow all origins in development
+  ? [
+      'https://localhost:5173',
+      'https://192.168.86.48:5173',
+      'https://127.0.0.1:5173',
+    ]
   : []; // Restrict in production (should be configured)
+
+// SSL Certificate paths
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.resolve(__dirname, '../.certs/localhost+3.pem');
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.resolve(__dirname, '../.certs/localhost+3-key.pem');
 
 // ============================================================================
 // Express Application Setup
@@ -139,6 +156,16 @@ app.get('/api', (_req: Request, res: Response) => {
         'POST /api/visual-usage': 'Process visual usage detection results',
         'GET /api/visual-usage/supported-items': 'Get list of detectable items',
       },
+      subscription: {
+        'GET /api/subscription/tier': 'Get current tier info and usage limits',
+        'GET /api/subscription/check-items': 'Check item limit status',
+        'GET /api/subscription/check-receipt': 'Check receipt scan limit status',
+        'GET /api/subscription/check-voice': 'Check voice assistant access',
+        'GET /api/subscription/prices': 'Get Stripe price IDs',
+        'POST /api/subscription/checkout': 'Create checkout session for upgrade',
+        'POST /api/subscription/portal': 'Create customer portal session',
+        'GET /api/subscription/status': 'Get subscription status',
+      },
     },
     models: {
       PantryItem: {
@@ -171,6 +198,9 @@ app.get('/api', (_req: Request, res: Response) => {
  */
 app.use('/api/items', itemsRouter);
 app.use('/api/activities', activitiesRouter);
+app.use('/api/subscription', subscriptionRouter);
+// Webhook route needs raw body for Stripe signature verification
+app.use('/api/webhooks', webhookRouter);
 // Scan routes are mounted at root for cleaner URLs per spec
 app.use('/api', scanRouter);
 
@@ -232,13 +262,51 @@ async function startServer(): Promise<void> {
     getDatabase();
     console.log('[SERVER] Database connected successfully');
 
-    // Start HTTP server
-    const server = app.listen(PORT, () => {
-      console.log(`[SERVER] Pantry Tracker API running on http://localhost:${PORT}`);
+    // Determine protocol and SSL options
+    let server: https.Server | any;
+    let protocol = 'http';
+    
+    if (USE_HTTPS && fs.existsSync(SSL_CERT_PATH) && fs.existsSync(SSL_KEY_PATH)) {
+      // Create HTTPS server
+      const sslOptions = {
+        key: fs.readFileSync(SSL_KEY_PATH),
+        cert: fs.readFileSync(SSL_CERT_PATH),
+      };
+      
+      server = https.createServer(sslOptions, app);
+      protocol = 'https';
+      console.log('[SERVER] Using HTTPS with custom certificates');
+    } else {
+      // Fallback to HTTP if no certificates available
+      console.log('[SERVER] HTTPS certificates not found, falling back to HTTP');
+      console.log('[SERVER] For HTTPS, ensure certificates exist at:');
+      console.log(`[SERVER]   Cert: ${SSL_CERT_PATH}`);
+      console.log(`[SERVER]   Key:  ${SSL_KEY_PATH}`);
+      // Create HTTP server using http module
+      const http = await import('http');
+      server = http.createServer(app);
+      protocol = 'http';
+    }
+
+    // Start server
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`[SERVER] Pantry Tracker API running on ${protocol}://localhost:${PORT}`);
+      console.log(`[SERVER] Pantry Tracker API running on ${protocol}://192.168.86.48:${PORT}`);
       console.log(`[SERVER] Environment: ${NODE_ENV}`);
-      console.log(`[SERVER] Health check: http://localhost:${PORT}/health`);
-      console.log(`[SERVER] API docs: http://localhost:${PORT}/api`);
+      console.log(`[SERVER] Health check: ${protocol}://localhost:${PORT}/health`);
+      console.log(`[SERVER] API docs: ${protocol}://localhost:${PORT}/api`);
+
     });
+
+    // Initialize Stripe products if configured (outside listen callback)
+    if (process.env.STRIPE_SECRET_KEY) {
+      console.log('[SERVER] Initializing Stripe products...');
+      ensureStripeProducts().then(() => {
+        console.log('[SERVER] Stripe products initialized');
+      }).catch((err) => {
+        console.error('[SERVER] Failed to initialize Stripe products:', err);
+      });
+    }
 
     // Graceful shutdown handlers
     const gracefulShutdown = (signal: string) => {

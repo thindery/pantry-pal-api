@@ -1,6 +1,7 @@
 /**
  * Pantry Items API Routes
  * RESTful endpoints for CRUD operations on pantry inventory
+ * All routes require authentication
  */
 
 import { Router } from 'express';
@@ -12,6 +13,7 @@ import {
   deleteItem,
   getCategories,
 } from '../db';
+import { requireAuth } from '../middleware/auth';
 import { ApiResponse } from '../models/types';
 import {
   createItemSchema,
@@ -20,6 +22,9 @@ import {
 } from '../models/validation';
 
 const router = Router();
+
+// Apply auth middleware to all routes
+router.use(requireAuth);
 
 // ============================================================================
 // Helper Functions
@@ -55,12 +60,14 @@ function errorResponse(code: string, message: string, details?: Record<string, u
 
 /**
  * GET /api/items
- * List all pantry items with optional category filter
+ * List all pantry items for the authenticated user with optional category filter
  */
 router.get('/', (req, res) => {
   try {
     const { category } = req.query;
-    const items = getAllItems(category as string | undefined);
+    const userId = req.userId!;
+    
+    const items = getAllItems(userId, category as string | undefined);
 
     res.json(successResponse(items));
   } catch (error) {
@@ -73,11 +80,12 @@ router.get('/', (req, res) => {
 
 /**
  * GET /api/items/categories
- * Get all unique categories
+ * Get all unique categories for the authenticated user
  */
-router.get('/categories', (_req, res) => {
+router.get('/categories', (req, res) => {
   try {
-    const categories = getCategories();
+    const userId = req.userId!;
+    const categories = getCategories(userId);
     res.json(successResponse(categories));
   } catch (error) {
     console.error('[GET /items/categories] Error:', error);
@@ -89,10 +97,11 @@ router.get('/categories', (_req, res) => {
 
 /**
  * GET /api/items/:id
- * Get a specific item by ID
+ * Get a specific item by ID for the authenticated user
  */
 router.get('/:id', (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = itemIdSchema.safeParse({ id: req.params.id });
 
     if (!validation.success) {
@@ -104,7 +113,7 @@ router.get('/:id', (req, res) => {
       return;
     }
 
-    const item = getItemById(req.params.id);
+    const item = getItemById(userId, req.params.id);
 
     if (!item) {
       res.status(404).json(
@@ -124,10 +133,11 @@ router.get('/:id', (req, res) => {
 
 /**
  * POST /api/items
- * Create a new pantry item
+ * Create a new pantry item for the authenticated user
  */
 router.post('/', (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = createItemSchema.safeParse(req.body);
 
     if (!validation.success) {
@@ -139,7 +149,7 @@ router.post('/', (req, res) => {
       return;
     }
 
-    const newItem = createItem(validation.data);
+    const newItem = createItem(userId, validation.data);
 
     res.status(201).json(successResponse(newItem));
   } catch (error) {
@@ -152,10 +162,12 @@ router.post('/', (req, res) => {
 
 /**
  * PUT /api/items/:id
- * Update an existing pantry item
+ * Update an existing pantry item for the authenticated user
  */
 router.put('/:id', (req, res) => {
   try {
+    const userId = req.userId!;
+    
     // Validate ID
     const idValidation = itemIdSchema.safeParse({ id: req.params.id });
     if (!idValidation.success) {
@@ -184,7 +196,7 @@ router.put('/:id', (req, res) => {
       return;
     }
 
-    const updatedItem = updateItem(req.params.id, bodyValidation.data);
+    const updatedItem = updateItem(userId, req.params.id, bodyValidation.data);
 
     if (!updatedItem) {
       res.status(404).json(
@@ -204,10 +216,11 @@ router.put('/:id', (req, res) => {
 
 /**
  * DELETE /api/items/:id
- * Delete a pantry item
+ * Delete a pantry item for the authenticated user
  */
 router.delete('/:id', (req, res) => {
   try {
+    const userId = req.userId!;
     const validation = itemIdSchema.safeParse({ id: req.params.id });
 
     if (!validation.success) {
@@ -217,7 +230,7 @@ router.delete('/:id', (req, res) => {
       return;
     }
 
-    const deleted = deleteItem(req.params.id);
+    const deleted = deleteItem(userId, req.params.id);
 
     if (!deleted) {
       res.status(404).json(

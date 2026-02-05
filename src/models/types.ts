@@ -32,6 +32,10 @@ export interface PantryItem {
   category: string;
   /** ISO 8601 timestamp of last update */
   lastUpdated: string;
+  /** User ID who owns this item */
+  userId: string;
+  /** Optional barcode for the item */
+  barcode?: string;
 }
 
 /**
@@ -44,6 +48,7 @@ export interface PantryItemRow {
   unit: string;
   category: string;
   last_updated: string;
+  user_id: string;
 }
 
 // ============================================================================
@@ -69,6 +74,8 @@ export interface Activity {
   timestamp: string;
   /** Source of the activity entry */
   source: ActivitySource;
+  /** User ID who performed this activity */
+  userId: string;
 }
 
 /**
@@ -82,6 +89,7 @@ export interface ActivityRow {
   amount: number;
   timestamp: string;
   source: ActivitySource;
+  user_id: string;
 }
 
 // ============================================================================
