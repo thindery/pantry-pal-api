@@ -11,6 +11,7 @@ import { ActivityType, ActivitySource } from '../models/types';
 // Configuration
 // ============================================================================
 
+const DB_TYPE = process.env.DB_TYPE || 'sqlite';
 // Default seed user ID (for development)
 const SEED_USER_ID = process.env.SEED_USER_ID || 'seed_user_test_123';
 
@@ -81,23 +82,21 @@ const sampleItems = [
 /**
  * Clear existing data and reset database
  */
-function clearDatabase(): void {
+async function clearDatabase(): Promise<void> {
   const database = getDatabase();
   
   console.log('[SEED] Clearing existing data...');
   
-  // Disable foreign key constraints temporarily
-  database.exec('PRAGMA foreign_keys = OFF;');
-  
-  // Clear tables
-  database.exec('DELETE FROM activities;');
-  database.exec('DELETE FROM pantry_items;');
-  
-  // Vacuum to reclaim space
-  database.exec('VACUUM;');
-  
-  // Re-enable foreign keys
-  database.exec('PRAGMA foreign_keys = ON;');
+  if (DB_TYPE === 'sqlite') {
+    await database.execute('PRAGMA foreign_keys = OFF;');
+    await database.execute('DELETE FROM activities;');
+    await database.execute('DELETE FROM pantry_items;');
+    await database.execute('VACUUM;');
+    await database.execute('PRAGMA foreign_keys = ON;');
+  } else {
+    // PostgreSQL
+    await database.execute('TRUNCATE activities, pantry_items CASCADE;');
+  }
   
   console.log('[SEED] Database cleared');
 }
@@ -105,13 +104,13 @@ function clearDatabase(): void {
 /**
  * Seed pantry items
  */
-function seedItems(): string[] {
+async function seedItems(): Promise<string[]> {
   console.log(`[SEED] Creating ${sampleItems.length} pantry items for user ${SEED_USER_ID}...`);
   
   const itemIds: string[] = [];
   
   for (const item of sampleItems) {
-    const created = createItem(SEED_USER_ID, item);
+    const created = await createItem(SEED_USER_ID, item);
     itemIds.push(created.id);
   }
   
@@ -122,7 +121,7 @@ function seedItems(): string[] {
 /**
  * Seed activities for realistic data
  */
-function seedActivities(itemIds: string[]): void {
+async function seedActivities(itemIds: string[]): Promise<void> {
   console.log('[SEED] Creating sample activities...');
   
   const activities: Array<{
@@ -171,7 +170,7 @@ function seedActivities(itemIds: string[]): void {
   // Log all activities
   let successCount = 0;
   for (const activity of activities) {
-    const logged = logActivity(
+    const logged = await logActivity(
       SEED_USER_ID,
       activity.itemId,
       activity.type,
@@ -187,12 +186,16 @@ function seedActivities(itemIds: string[]): void {
 /**
  * Print summary statistics
  */
-function printSummary(): void {
+async function printSummary(): Promise<void> {
   const database = getDatabase();
   
-  const itemCount = (database.prepare('SELECT COUNT(*) as count FROM pantry_items').get() as { count: number }).count;
-  const activityCount = (database.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }).count;
-  const categoryCount = (database.prepare('SELECT COUNT(DISTINCT category) as count FROM pantry_items').get() as { count: number }).count;
+  const itemResult = await database.query('SELECT COUNT(*) as count FROM pantry_items') as any[];
+  const activityResult = await database.query('SELECT COUNT(*) as count FROM activities') as any[];
+  const categoryResult = await database.query('SELECT COUNT(DISTINCT category) as count FROM pantry_items') as any[];
+  
+  const itemCount = parseInt(itemResult[0].count, 10);
+  const activityCount = parseInt(activityResult[0].count, 10);
+  const categoryCount = parseInt(categoryResult[0].count, 10);
   
   console.log('\n[SEED] ===========================================');
   console.log('[SEED] Seed Summary');
@@ -205,16 +208,16 @@ function printSummary(): void {
   
   // Show category breakdown
   console.log('[SEED] Category Breakdown:');
-  const categories = database.prepare(`
+  const categories = await database.query(`
     SELECT category, COUNT(*) as count, SUM(quantity) as total_quantity
     FROM pantry_items
     WHERE user_id = ?
     GROUP BY category
     ORDER BY count DESC
-  `).all(SEED_USER_ID) as Array<{ category: string; count: number; total_quantity: number }>;
+  `, [SEED_USER_ID]) as Array<{ category: string; count: string; total_quantity: string }>;
   
   for (const cat of categories) {
-    console.log(`[SEED]   - ${cat.category}: ${cat.count} items (${Math.round(cat.total_quantity * 10) / 10} total)`);
+    console.log(`[SEED]   - ${cat.category}: ${cat.count} items (${Math.round(parseFloat(cat.total_quantity) * 10) / 10} total)`);
   }
   
   console.log('\n[SEED] Database seeded successfully!');
@@ -232,16 +235,16 @@ async function runSeed(): Promise<void> {
     getDatabase();
     
     // Clear existing data
-    clearDatabase();
+    await clearDatabase();
     
     // Seed items
-    const itemIds = seedItems();
+    const itemIds = await seedItems();
     
     // Seed activities
-    seedActivities(itemIds);
+    await seedActivities(itemIds);
     
     // Print summary
-    printSummary();
+    await printSummary();
     
     // Close connection
     closeDatabase();

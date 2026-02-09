@@ -1,10 +1,12 @@
 /**
  * Subscription service - database operations for user tiers and usage limits
+ * 
+ * Supports both SQLite and PostgreSQL via the database adapter pattern
  */
 
-import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../db';
+import type Database from 'better-sqlite3';
 import {
   UserSubscription,
   UserSubscriptionRow,
@@ -55,7 +57,7 @@ function mapUsageLimitsRow(row: UsageLimitsRow): UsageLimits {
 // ============================================================================
 
 /**
- * Initialize schema for subscription tables
+ * Initialize schema for subscription tables - SQLite version
  * Called during database initialization
  */
 export function initializeSubscriptionSchema(db: Database.Database): void {
@@ -102,27 +104,28 @@ export function initializeSubscriptionSchema(db: Database.Database): void {
 /**
  * Get or create user subscription record
  */
-export function getOrCreateUserSubscription(userId: string): UserSubscription {
+export async function getOrCreateUserSubscription(userId: string): Promise<UserSubscription> {
   const db = getDatabase();
 
   // Try to find existing subscription
-  const findStmt = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?');
-  const existing = findStmt.get(userId) as UserSubscriptionRow | undefined;
+  const existing = await db.query(
+    'SELECT * FROM user_subscriptions WHERE user_id = ?',
+    [userId]
+  ) as UserSubscriptionRow[];
 
-  if (existing) {
-    return mapUserSubscriptionRow(existing);
+  if (existing.length > 0) {
+    return mapUserSubscriptionRow(existing[0]);
   }
 
   // Create new free-tier subscription
   const now = new Date().toISOString();
   const id = uuidv4();
 
-  const createStmt = db.prepare(`
-    INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
-    VALUES (?, ?, 'free', ?, ?)
-  `);
-
-  createStmt.run(id, userId, now, now);
+  await db.execute(
+    `INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
+     VALUES (?, ?, 'free', ?, ?)`,
+    [id, userId, now, now]
+  );
 
   return {
     id,
@@ -142,25 +145,27 @@ export function getOrCreateUserSubscription(userId: string): UserSubscription {
 /**
  * Get user subscription by ID
  */
-export function getUserSubscription(userId: string): UserSubscription | null {
+export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
   const db = getDatabase();
 
-  const stmt = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?');
-  const row = stmt.get(userId) as UserSubscriptionRow | undefined;
+  const result = await db.query(
+    'SELECT * FROM user_subscriptions WHERE user_id = ?',
+    [userId]
+  ) as UserSubscriptionRow[];
 
-  return row ? mapUserSubscriptionRow(row) : null;
+  return result.length > 0 ? mapUserSubscriptionRow(result[0]) : null;
 }
 
 /**
  * Update user subscription with Stripe data
  */
-export function updateUserSubscription(
+export async function updateUserSubscription(
   userId: string,
   updates: Partial<Omit<UserSubscription, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
-): UserSubscription | null {
+): Promise<UserSubscription | null> {
   const db = getDatabase();
 
-  const existing = getUserSubscription(userId);
+  const existing = await getUserSubscription(userId);
   if (!existing) return null;
 
   const now = new Date().toISOString();
@@ -205,8 +210,7 @@ export function updateUserSubscription(
   params.push(userId);
 
   const query = `UPDATE user_subscriptions SET ${updateFields.join(', ')} WHERE user_id = ?`;
-  const stmt = db.prepare(query);
-  stmt.run(...params);
+  await db.execute(query, params);
 
   return getUserSubscription(userId);
 }
@@ -214,22 +218,21 @@ export function updateUserSubscription(
 /**
  * Downgrade user to free tier (for cancellations)
  */
-export function downgradeToFree(userId: string): UserSubscription | null {
+export async function downgradeToFree(userId: string): Promise<UserSubscription | null> {
   const db = getDatabase();
   const now = new Date().toISOString();
 
-  const stmt = db.prepare(`
-    UPDATE user_subscriptions
-    SET tier = 'free',
-        stripe_subscription_id = NULL,
-        stripe_price_id = NULL,
-        subscription_status = 'canceled',
-        subscription_end_date = ?,
-        updated_at = ?
-    WHERE user_id = ?
-  `);
-
-  stmt.run(now, now, userId);
+  await db.execute(
+    `UPDATE user_subscriptions
+     SET tier = 'free',
+         stripe_subscription_id = NULL,
+         stripe_price_id = NULL,
+         subscription_status = 'canceled',
+         subscription_end_date = ?,
+         updated_at = ?
+     WHERE user_id = ?`,
+    [now, now, userId]
+  );
 
   return getUserSubscription(userId);
 }
@@ -249,28 +252,29 @@ function getCurrentMonth(): string {
 /**
  * Get or create usage limits for current month
  */
-export function getOrCreateUsageLimits(userId: string): UsageLimits {
+export async function getOrCreateUsageLimits(userId: string): Promise<UsageLimits> {
   const db = getDatabase();
   const month = getCurrentMonth();
 
   // Try to find existing limits
-  const findStmt = db.prepare('SELECT * FROM usage_limits WHERE user_id = ? AND month = ?');
-  const existing = findStmt.get(userId, month) as UsageLimitsRow | undefined;
+  const existing = await db.query(
+    'SELECT * FROM usage_limits WHERE user_id = ? AND month = ?',
+    [userId, month]
+  ) as UsageLimitsRow[];
 
-  if (existing) {
-    return mapUsageLimitsRow(existing);
+  if (existing.length > 0) {
+    return mapUsageLimitsRow(existing[0]);
   }
 
   // Create new usage limits record
   const now = new Date().toISOString();
   const id = uuidv4();
 
-  const createStmt = db.prepare(`
-    INSERT INTO usage_limits (id, user_id, month, receipt_scans, ai_calls, voice_sessions, created_at, updated_at)
-    VALUES (?, ?, ?, 0, 0, 0, ?, ?)
-  `);
-
-  createStmt.run(id, userId, month, now, now);
+  await db.execute(
+    `INSERT INTO usage_limits (id, user_id, month, receipt_scans, ai_calls, voice_sessions, created_at, updated_at)
+     VALUES (?, ?, ?, 0, 0, 0, ?, ?)`,
+    [id, userId, month, now, now]
+  );
 
   return {
     id,
@@ -287,16 +291,16 @@ export function getOrCreateUsageLimits(userId: string): UsageLimits {
 /**
  * Increment usage counter
  */
-export function incrementUsage(
+export async function incrementUsage(
   userId: string,
   type: 'receiptScans' | 'aiCalls' | 'voiceSessions'
-): UsageLimits {
+): Promise<UsageLimits> {
   const db = getDatabase();
   const month = getCurrentMonth();
   const now = new Date().toISOString();
 
   // Ensure record exists
-  getOrCreateUsageLimits(userId);
+  await getOrCreateUsageLimits(userId);
 
   const columnMap = {
     receiptScans: 'receipt_scans',
@@ -304,14 +308,13 @@ export function incrementUsage(
     voiceSessions: 'voice_sessions',
   };
 
-  const stmt = db.prepare(`
-    UPDATE usage_limits
-    SET ${columnMap[type]} = ${columnMap[type]} + 1,
-        updated_at = ?
-    WHERE user_id = ? AND month = ?
-  `);
-
-  stmt.run(now, userId, month);
+  await db.execute(
+    `UPDATE usage_limits
+     SET ${columnMap[type]} = ${columnMap[type]} + 1,
+         updated_at = ?
+     WHERE user_id = ? AND month = ?`,
+    [now, userId, month]
+  );
 
   return getOrCreateUsageLimits(userId);
 }
@@ -319,7 +322,7 @@ export function incrementUsage(
 /**
  * Get usage limits for a user
  */
-export function getUsageLimits(userId: string): UsageLimits {
+export async function getUsageLimits(userId: string): Promise<UsageLimits> {
   return getOrCreateUsageLimits(userId);
 }
 
@@ -330,8 +333,8 @@ export function getUsageLimits(userId: string): UsageLimits {
 /**
  * Check if user can add more items
  */
-export function canAddItems(userId: string, currentItemCount: number): { allowed: boolean; remaining: number } {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function canAddItems(userId: string, currentItemCount: number): Promise<{ allowed: boolean; remaining: number }> {
+  const subscription = await getOrCreateUserSubscription(userId);
   const limit = TIER_LIMITS[subscription.tier].maxItems;
 
   if (limit === Infinity) {
@@ -345,15 +348,15 @@ export function canAddItems(userId: string, currentItemCount: number): { allowed
 /**
  * Check if user can scan receipts
  */
-export function canScanReceipt(userId: string): { allowed: boolean; remaining: number } {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function canScanReceipt(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+  const subscription = await getOrCreateUserSubscription(userId);
   const limit = TIER_LIMITS[subscription.tier].receiptScansPerMonth;
 
   if (limit === Infinity) {
     return { allowed: true, remaining: Infinity as unknown as number };
   }
 
-  const usage = getOrCreateUsageLimits(userId);
+  const usage = await getOrCreateUsageLimits(userId);
   const remaining = limit - usage.receiptScans;
   return { allowed: remaining > 0, remaining };
 }
@@ -361,15 +364,15 @@ export function canScanReceipt(userId: string): { allowed: boolean; remaining: n
 /**
  * Check if user can use AI features
  */
-export function canUseAI(userId: string): { allowed: boolean; remaining: number } {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function canUseAI(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+  const subscription = await getOrCreateUserSubscription(userId);
   const limit = TIER_LIMITS[subscription.tier].aiCallsPerMonth;
 
   if (limit === Infinity) {
     return { allowed: true, remaining: Infinity as unknown as number };
   }
 
-  const usage = getOrCreateUsageLimits(userId);
+  const usage = await getOrCreateUsageLimits(userId);
   const remaining = limit - usage.aiCalls;
   return { allowed: remaining > 0, remaining };
 }
@@ -377,36 +380,36 @@ export function canUseAI(userId: string): { allowed: boolean; remaining: number 
 /**
  * Check if user can use voice assistant
  */
-export function canUseVoiceAssistant(userId: string): boolean {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function canUseVoiceAssistant(userId: string): Promise<boolean> {
+  const subscription = await getOrCreateUserSubscription(userId);
   return TIER_LIMITS[subscription.tier].voiceAssistant;
 }
 
 /**
  * Check if user has multi-device support
  */
-export function hasMultiDevice(userId: string): boolean {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function hasMultiDevice(userId: string): Promise<boolean> {
+  const subscription = await getOrCreateUserSubscription(userId);
   return TIER_LIMITS[subscription.tier].multiDevice;
 }
 
 /**
  * Check if user has shared inventory (family tier)
  */
-export function hasSharedInventory(userId: string): boolean {
-  const subscription = getOrCreateUserSubscription(userId);
+export async function hasSharedInventory(userId: string): Promise<boolean> {
+  const subscription = await getOrCreateUserSubscription(userId);
   return TIER_LIMITS[subscription.tier].sharedInventory;
 }
 
 /**
  * Get user tier info for API response
  */
-export function getUserTierInfo(
+export async function getUserTierInfo(
   userId: string,
   currentItemCount: number
 ) {
-  const subscription = getOrCreateUserSubscription(userId);
-  const usage = getOrCreateUsageLimits(userId);
+  const subscription = await getOrCreateUserSubscription(userId);
+  const usage = await getOrCreateUsageLimits(userId);
   const limits = TIER_LIMITS[subscription.tier];
 
   return {
@@ -445,12 +448,13 @@ export function getUserTierInfo(
  * Migrate existing users to free tier
  * Run this after schema initialization
  */
-export function migrateExistingUsersToFreeTier(): void {
+export async function migrateExistingUsersToFreeTier(): Promise<void> {
   const db = getDatabase();
 
   // Get all unique user_ids from pantry_items
-  const userStmt = db.prepare('SELECT DISTINCT user_id FROM pantry_items');
-  const users = userStmt.all() as { user_id: string }[];
+  const users = await db.query(
+    'SELECT DISTINCT user_id FROM pantry_items'
+  ) as { user_id: string }[];
 
   const now = new Date().toISOString();
   let migrated = 0;
@@ -458,20 +462,23 @@ export function migrateExistingUsersToFreeTier(): void {
 
   for (const { user_id } of users) {
     // Check if subscription record already exists
-    const exists = db.prepare('SELECT 1 FROM user_subscriptions WHERE user_id = ?').get(user_id);
+    const exists = await db.query(
+      'SELECT 1 FROM user_subscriptions WHERE user_id = ?',
+      [user_id]
+    ) as unknown[];
 
-    if (exists) {
+    if (exists.length > 0) {
       skipped++;
       continue;
     }
 
     // Create free tier subscription
     const id = uuidv4();
-    const createStmt = db.prepare(`
-      INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
-      VALUES (?, ?, 'free', ?, ?)
-    `);
-    createStmt.run(id, user_id, now, now);
+    await db.execute(
+      `INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
+       VALUES (?, ?, 'free', ?, ?)`,
+      [id, user_id, now, now]
+    );
     migrated++;
   }
 

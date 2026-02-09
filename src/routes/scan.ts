@@ -78,7 +78,7 @@ router.post('/scan-receipt', (req, res) => {
 
     const { scanData, minConfidence } = validation.data;
 
-    // Process the scan data
+    // Process the scan data (this is synchronous - no async db calls needed)
     const results = processReceiptScan(scanData);
 
     // Filter by confidence if specified
@@ -124,7 +124,7 @@ router.post('/scan-receipt/import', async (req, res) => {
 
     const { scanData } = validation.data;
 
-    // Parse the scan data
+    // Parse the scan data (this is synchronous)
     const results: ScanResult[] = processReceiptScan(scanData);
     const imported: Array<{ itemId: string; name: string; quantity: number; activityId: string }> = [];
     const errors: string[] = [];
@@ -132,11 +132,11 @@ router.post('/scan-receipt/import', async (req, res) => {
     for (const scanResult of results) {
       try {
         // Check if item already exists for this user
-        let item = getItemByName(userId, scanResult.name);
+        let item = await getItemByName(userId, scanResult.name);
 
         if (!item) {
           // Create new item
-          item = createItem(userId, {
+          item = await createItem(userId, {
             name: scanResult.name,
             quantity: 0,
             unit: scanResult.unit || 'pieces',
@@ -145,7 +145,7 @@ router.post('/scan-receipt/import', async (req, res) => {
         }
 
         // Log ADD activity
-        const activity = logActivity(
+        const activity = await logActivity(
           userId,
           item.id,
           'ADD',
@@ -193,7 +193,7 @@ router.post('/scan-receipt/import', async (req, res) => {
  * Process visual usage detection results
  * Automatically creates REMOVE activities for detected usage
  */
-router.post('/visual-usage', (req, res) => {
+router.post('/visual-usage', async (req, res) => {
   try {
     const userId = req.userId!;
     const validation = visualUsageSchema.safeParse(req.body);
@@ -211,7 +211,7 @@ router.post('/visual-usage', (req, res) => {
     const source = detectionSource || 'VISUAL_USAGE';
 
     // Process detections and create activities
-    const results = processVisualUsage(userId, detections, source);
+    const results = await processVisualUsage(userId, detections, source);
 
     res.json(
       successResponse(

@@ -61,11 +61,11 @@ function errorResponse(
  * GET /api/subscription/tier
  * Get current user's tier info, limits, and usage
  */
-router.get('/tier', (req, res) => {
+router.get('/tier', async (req, res) => {
   try {
     const userId = req.userId!;
-    const items = getAllItems(userId);
-    const tierInfo = getUserTierInfo(userId, items.length);
+    const items = await getAllItems(userId);
+    const tierInfo = await getUserTierInfo(userId, items.length);
 
     res.json(successResponse(tierInfo));
   } catch (error) {
@@ -80,11 +80,11 @@ router.get('/tier', (req, res) => {
  * GET /api/subscription/check-items
  * Check if user can add items (returns remaining count)
  */
-router.get('/check-items', (req, res) => {
+router.get('/check-items', async (req, res) => {
   try {
     const userId = req.userId!;
-    const items = getAllItems(userId);
-    const check = canAddItems(userId, items.length);
+    const items = await getAllItems(userId);
+    const check = await canAddItems(userId, items.length);
 
     res.json(
       successResponse({
@@ -106,10 +106,10 @@ router.get('/check-items', (req, res) => {
  * GET /api/subscription/check-receipt
  * Check if user can scan receipts
  */
-router.get('/check-receipt', (req, res) => {
+router.get('/check-receipt', async (req, res) => {
   try {
     const userId = req.userId!;
-    const check = canScanReceipt(userId);
+    const check = await canScanReceipt(userId);
 
     res.json(
       successResponse({
@@ -129,10 +129,10 @@ router.get('/check-receipt', (req, res) => {
  * GET /api/subscription/check-voice
  * Check if user can use voice assistant
  */
-router.get('/check-voice', (req, res) => {
+router.get('/check-voice', async (req, res) => {
   try {
     const userId = req.userId!;
-    const allowed = canUseVoiceAssistant(userId);
+    const allowed = await canUseVoiceAssistant(userId);
 
     res.json(
       successResponse({
@@ -238,11 +238,11 @@ router.post('/portal', async (req, res) => {
  * GET /api/subscription/status
  * Simple endpoint to check if subscription is active
  */
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
     const userId = req.userId!;
-    const items = getAllItems(userId);
-    const tierInfo = getUserTierInfo(userId, items.length);
+    const items = await getAllItems(userId);
+    const tierInfo = await getUserTierInfo(userId, items.length);
 
     res.json(
       successResponse({

@@ -61,7 +61,7 @@ function errorResponse(code: string, message: string, details?: Record<string, u
  * List recent activity for the authenticated user with pagination
  * Query params: page, limit, itemId
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const userId = req.userId!;
     const pagination = paginationSchema.safeParse(req.query);
@@ -81,8 +81,8 @@ router.get('/', (req, res) => {
     const limit = pagination.success ? pagination.data.limit : 20;
     const offset = (page - 1) * limit;
 
-    const activities = getActivities(userId, limit, offset, itemId);
-    const total = getActivityCount(userId, itemId);
+    const activities = await getActivities(userId, limit, offset, itemId);
+    const total = await getActivityCount(userId, itemId);
 
     res.json(
       successResponse(activities, {
@@ -105,7 +105,7 @@ router.get('/', (req, res) => {
  * Log a new activity for the authenticated user (ADD, REMOVE, or ADJUST)
  * Automatically updates the associated item's quantity
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const userId = req.userId!;
     const validation = createActivitySchema.safeParse(req.body);
@@ -121,7 +121,7 @@ router.post('/', (req, res) => {
 
     const { itemId, type, amount, source } = validation.data;
 
-    const activity = logActivity(userId, itemId, type, amount, source);
+    const activity = await logActivity(userId, itemId, type, amount, source);
 
     if (!activity) {
       res.status(404).json(

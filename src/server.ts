@@ -108,10 +108,12 @@ app.get('/', (_req: Request, res: Response) => {
 /**
  * Health check endpoint
  */
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', async (_req: Request, res: Response) => {
   try {
     // Test database connection
-    getDatabase();
+    const db = getDatabase();
+    // Try a simple query to verify connection works
+    await db.query('SELECT 1');
     
     res.json({
       status: 'healthy',

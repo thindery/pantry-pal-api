@@ -62,12 +62,12 @@ function errorResponse(code: string, message: string, details?: Record<string, u
  * GET /api/items
  * List all pantry items for the authenticated user with optional category filter
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category } = req.query;
     const userId = req.userId!;
     
-    const items = getAllItems(userId, category as string | undefined);
+    const items = await getAllItems(userId, category as string | undefined);
 
     res.json(successResponse(items));
   } catch (error) {
@@ -82,10 +82,10 @@ router.get('/', (req, res) => {
  * GET /api/items/categories
  * Get all unique categories for the authenticated user
  */
-router.get('/categories', (req, res) => {
+router.get('/categories', async (req, res) => {
   try {
     const userId = req.userId!;
-    const categories = getCategories(userId);
+    const categories = await getCategories(userId);
     res.json(successResponse(categories));
   } catch (error) {
     console.error('[GET /items/categories] Error:', error);
@@ -99,7 +99,7 @@ router.get('/categories', (req, res) => {
  * GET /api/items/:id
  * Get a specific item by ID for the authenticated user
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const userId = req.userId!;
     const validation = itemIdSchema.safeParse({ id: req.params.id });
@@ -113,7 +113,7 @@ router.get('/:id', (req, res) => {
       return;
     }
 
-    const item = getItemById(userId, req.params.id);
+    const item = await getItemById(userId, req.params.id);
 
     if (!item) {
       res.status(404).json(
@@ -135,7 +135,7 @@ router.get('/:id', (req, res) => {
  * POST /api/items
  * Create a new pantry item for the authenticated user
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const userId = req.userId!;
     const validation = createItemSchema.safeParse(req.body);
@@ -149,7 +149,7 @@ router.post('/', (req, res) => {
       return;
     }
 
-    const newItem = createItem(userId, validation.data);
+    const newItem = await createItem(userId, validation.data);
 
     res.status(201).json(successResponse(newItem));
   } catch (error) {
@@ -164,7 +164,7 @@ router.post('/', (req, res) => {
  * PUT /api/items/:id
  * Update an existing pantry item for the authenticated user
  */
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const userId = req.userId!;
     
@@ -196,7 +196,7 @@ router.put('/:id', (req, res) => {
       return;
     }
 
-    const updatedItem = updateItem(userId, req.params.id, bodyValidation.data);
+    const updatedItem = await updateItem(userId, req.params.id, bodyValidation.data);
 
     if (!updatedItem) {
       res.status(404).json(
@@ -218,7 +218,7 @@ router.put('/:id', (req, res) => {
  * DELETE /api/items/:id
  * Delete a pantry item for the authenticated user
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const userId = req.userId!;
     const validation = itemIdSchema.safeParse({ id: req.params.id });
@@ -230,7 +230,7 @@ router.delete('/:id', (req, res) => {
       return;
     }
 
-    const deleted = deleteItem(userId, req.params.id);
+    const deleted = await deleteItem(userId, req.params.id);
 
     if (!deleted) {
       res.status(404).json(
