@@ -3,7 +3,7 @@
  * Uses pg for PostgreSQL operations
  */
 
-import { Pool, PoolClient, Client } from 'pg';
+import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseAdapter, CreateItemInput, UpdateItemInput } from './adapter';
 import {
@@ -27,7 +27,6 @@ const DB_NAME = process.env.DB_NAME || 'pantry_pal';
 const DB_USER = process.env.DB_USER || 'postgres';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
 const DB_SSL = process.env.DB_SSL === 'true';
-const isDevelopment = process.env.NODE_ENV !== 'production';
 
 // ============================================================================
 // Row Mappers

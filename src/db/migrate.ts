@@ -9,7 +9,6 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { Pool } from 'pg';
-import { migrateExistingUsersToFreeTier } from '../services/subscription';
 
 const DB_TYPE = process.env.DB_TYPE || 'sqlite';
 const DB_PATH = process.env.DB_PATH || './data/pantry.db';

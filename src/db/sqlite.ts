@@ -527,11 +527,16 @@ export class SQLiteAdapter implements DatabaseAdapter {
     return stmt.all(...(params || []));
   }
 
-  execute(sql: string, params?: unknown[]): { changes: number; lastID?: string | number } {
+  execute(sql: string, params?: unknown[]): Promise<{ changes: number; lastID?: string | number }> {
     const db = this.getDatabase();
     const stmt = db.prepare(sql);
     const result = stmt.run(...(params || []));
-    return { changes: result.changes, lastID: result.lastInsertRowid };
+    return Promise.resolve({ 
+      changes: result.changes, 
+      lastID: typeof result.lastInsertRowid === 'bigint' 
+        ? Number(result.lastInsertRowid) 
+        : result.lastInsertRowid 
+    });
   }
 
   transaction<T>(fn: () => T): T {
