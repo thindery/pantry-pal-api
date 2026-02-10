@@ -43,6 +43,7 @@ const CORS_ORIGINS = process.env.CORS_ORIGINS
       'https://localhost:5173',
       'https://192.168.86.48:5173',
       'https://127.0.0.1:5173',
+      'https://frondescent-terri-boltlike.ngrok-free.dev',
     ]
   : []; // Restrict in production (should be configured)
 
