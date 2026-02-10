@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = require("../db");
+const auth_1 = require("../middleware/auth");
 const validation_1 = require("../models/validation");
 const router = (0, express_1.Router)();
+router.use(auth_1.requireAuth);
 function successResponse(data, meta) {
     return {
         success: true,
@@ -29,6 +31,7 @@ function errorResponse(code, message, details) {
 }
 router.get('/', (req, res) => {
     try {
+        const userId = req.userId;
         const pagination = validation_1.paginationSchema.safeParse(req.query);
         const { itemId } = req.query;
         if (itemId) {
@@ -41,8 +44,8 @@ router.get('/', (req, res) => {
         const page = pagination.success ? pagination.data.page : 1;
         const limit = pagination.success ? pagination.data.limit : 20;
         const offset = (page - 1) * limit;
-        const activities = (0, db_1.getActivities)(limit, offset, itemId);
-        const total = (0, db_1.getActivityCount)(itemId);
+        const activities = (0, db_1.getActivities)(userId, limit, offset, itemId);
+        const total = (0, db_1.getActivityCount)(userId, itemId);
         res.json(successResponse(activities, {
             page,
             limit,
@@ -57,6 +60,7 @@ router.get('/', (req, res) => {
 });
 router.post('/', (req, res) => {
     try {
+        const userId = req.userId;
         const validation = validation_1.createActivitySchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid request body', {
@@ -65,7 +69,7 @@ router.post('/', (req, res) => {
             return;
         }
         const { itemId, type, amount, source } = validation.data;
-        const activity = (0, db_1.logActivity)(itemId, type, amount, source);
+        const activity = (0, db_1.logActivity)(userId, itemId, type, amount, source);
         if (!activity) {
             res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${itemId} not found`));
             return;

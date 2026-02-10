@@ -1,214 +1,233 @@
 /**
- * Database Migration Script
- * Handles schema migrations for the Pantry Pal API
- * Run with: npm run db:migrate
- *
- * This script handles migrations from older schema versions to current.
+ * Database migration system
+ * Runs all migrations in sequence and tracks which ones have been applied
+ * 
+ * Supports both SQLite and PostgreSQL
  */
 
+import fs from 'fs';
+import path from 'path';
 import Database from 'better-sqlite3';
-import * as path from 'path';
-import * as fs from 'fs';
+import { Pool } from 'pg';
+import { migrateExistingUsersToFreeTier } from '../services/subscription';
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
+const DB_TYPE = process.env.DB_TYPE || 'sqlite';
 const DB_PATH = process.env.DB_PATH || './data/pantry.db';
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || 'legacy_user_001';
 
-// ============================================================================
-// Migration Functions
-// ============================================================================
+// PostgreSQL config
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
+const DB_NAME = process.env.DB_NAME || 'pantry_pal';
+const DB_USER = process.env.DB_USER || 'postgres';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
+const DB_SSL = process.env.DB_SSL === 'true';
 
-/**
- * Check if a column exists in a table
- */
-function columnExists(db: Database.Database, tableName: string, columnName: string): boolean {
-  const stmt = db.prepare(`PRAGMA table_info(${tableName})`);
-  const columns = stmt.all() as Array<{ name: string }>;
-  return columns.some((col) => col.name === columnName);
-}
+// ==========================================================================
+// SQLite Migrations
+// ==========================================================================
 
 /**
- * Check if an index exists
+ * Initialize migrations table (SQLite)
  */
-function indexExists(db: Database.Database, indexName: string): boolean {
-  const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name=?");
-  const result = stmt.get(indexName) as { name: string } | undefined;
-  return !!result;
-}
-
-/**
- * Migration: Add user_id column to pantry_items table
- */
-function migratePantryItemsUserId(db: Database.Database): void {
-  if (columnExists(db, 'pantry_items', 'user_id')) {
-    console.log('[MIGRATE] pantry_items.user_id already exists, skipping...');
-    return;
-  }
-
-  console.log('[MIGRATE] Adding user_id column to pantry_items...');
-
-  // SQLite doesn't support ALTER TABLE ADD COLUMN with NOT NULL without DEFAULT
-  // So we add it without NOT NULL first, populate it, then add the constraint
+function initMigrationsTableSQLite(db: Database.Database): void {
   db.exec(`
-    ALTER TABLE pantry_items ADD COLUMN user_id TEXT;
+    CREATE TABLE IF NOT EXISTS migrations (
+      id INTEGER PRIMARY KEY,
+      filename TEXT NOT NULL UNIQUE,
+      applied_at TEXT NOT NULL
+    );
+  `);
+}
+
+/**
+ * Get list of applied migrations (SQLite)
+ */
+function getAppliedMigrationsSQLite(db: Database.Database): string[] {
+  const stmt = db.prepare('SELECT filename FROM migrations ORDER BY id');
+  const rows = stmt.all() as { filename: string }[];
+  return rows.map((r) => r.filename);
+}
+
+/**
+ * Record a migration as applied (SQLite)
+ */
+function recordMigrationSQLite(db: Database.Database, filename: string): void {
+  const stmt = db.prepare('INSERT INTO migrations (filename, applied_at) VALUES (?, ?)');
+  stmt.run(filename, new Date().toISOString());
+}
+
+/**
+ * Run a single migration file (SQLite)
+ */
+function runMigrationSQLite(db: Database.Database, filepath: string): void {
+  const sql = fs.readFileSync(filepath, 'utf-8');
+  db.exec(sql);
+}
+
+// ==========================================================================
+// PostgreSQL Migrations
+// ==========================================================================
+
+async function getAppliedMigrationsPostgres(pool: Pool): Promise<string[]> {
+  // Ensure migrations table exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS migrations (
+      id SERIAL PRIMARY KEY,
+      filename TEXT NOT NULL UNIQUE,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
-  // Update existing records with default user_id
-  const updateStmt = db.prepare('UPDATE pantry_items SET user_id = ? WHERE user_id IS NULL');
-  const result = updateStmt.run(DEFAULT_USER_ID);
-  console.log(`[MIGRATE] Updated ${result.changes} existing pantry_items with default user_id`);
+  const result = await pool.query('SELECT filename FROM migrations ORDER BY id');
+  return result.rows.map((r) => r.filename);
+}
 
-  // SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we can't add NOT NULL after
-  // The app will enforce this, but we should document this limitation
-  console.log('[MIGRATE] Note: NOT NULL constraint cannot be added to existing SQLite column');
-  console.log('[MIGRATE] The application will enforce user_id requirement');
+async function recordMigrationPostgres(pool: Pool, filename: string): Promise<void> {
+  await pool.query(
+    'INSERT INTO migrations (filename, applied_at) VALUES ($1, $2)',
+    [filename, new Date().toISOString()]
+  );
+}
+
+async function runMigrationPostgres(pool: Pool, filepath: string): Promise<void> {
+  const sql = fs.readFileSync(filepath, 'utf-8');
+  await pool.query(sql);
+}
+
+// ==========================================================================
+// Migration Runner
+// ==========================================================================
+
+/**
+ * Get migration files from directory
+ */
+function getMigrationFiles(migrationsDir: string): string[] {
+  if (!fs.existsSync(migrationsDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
 }
 
 /**
- * Migration: Add user_id column to activities table
+ * Run all pending migrations
  */
-function migrateActivitiesUserId(db: Database.Database): void {
-  if (columnExists(db, 'activities', 'user_id')) {
-    console.log('[MIGRATE] activities.user_id already exists, skipping...');
-    return;
-  }
-
-  console.log('[MIGRATE] Adding user_id column to activities...');
-
-  db.exec(`
-    ALTER TABLE activities ADD COLUMN user_id TEXT;
-  `);
-
-  // Update existing records with default user_id
-  const updateStmt = db.prepare('UPDATE activities SET user_id = ? WHERE user_id IS NULL');
-  const result = updateStmt.run(DEFAULT_USER_ID);
-  console.log(`[MIGRATE] Updated ${result.changes} existing activities with default user_id`);
-}
-
-/**
- * Migration: Add barcode column to pantry_items table
- */
-function migratePantryItemsBarcode(db: Database.Database): void {
-  if (columnExists(db, 'pantry_items', 'barcode')) {
-    console.log('[MIGRATE] pantry_items.barcode already exists, skipping...');
-    return;
-  }
-
-  console.log('[MIGRATE] Adding barcode column to pantry_items...');
-
-  db.exec(`
-    ALTER TABLE pantry_items ADD COLUMN barcode TEXT;
-  `);
-
-  console.log('[MIGRATE] Added barcode column to pantry_items');
-}
-
-/**
- * Migration: Add missing indexes
- */
-function migrateIndexes(db: Database.Database): void {
-  const indexesToAdd = [
-    { name: 'idx_pantry_items_user_id', sql: 'CREATE INDEX idx_pantry_items_user_id ON pantry_items(user_id)' },
-    { name: 'idx_activities_user_id', sql: 'CREATE INDEX idx_activities_user_id ON activities(user_id)' },
-  ];
-
-  for (const { name, sql } of indexesToAdd) {
-    if (indexExists(db, name)) {
-      console.log(`[MIGRATE] Index ${name} already exists, skipping...`);
-      continue;
-    }
-
-    console.log(`[MIGRATE] Creating index ${name}...`);
-    db.exec(sql);
-  }
-
-  // Barcode index only if barcode column exists
-  if (columnExists(db, 'pantry_items', 'barcode')) {
-    if (!indexExists(db, 'idx_pantry_items_barcode')) {
-      console.log('[MIGRATE] Creating index idx_pantry_items_barcode...');
-      db.exec('CREATE INDEX idx_pantry_items_barcode ON pantry_items(barcode)');
-    } else {
-      console.log('[MIGRATE] Index idx_pantry_items_barcode already exists, skipping...');
-    }
-  }
-}
-
-/**
- * Main migration function
- */
-export function runMigrations(dbPath: string = DB_PATH): void {
+export async function runMigrationsSQLite(dbPath: string = DB_PATH): Promise<void> {
   // Ensure data directory exists
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  const dataDir = path.dirname(dbPath);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  // Open database
   const db = new Database(dbPath);
-  console.log(`[MIGRATE] Connected to database: ${dbPath}`);
 
   try {
     // Enable foreign keys
     db.pragma('foreign_keys = ON');
 
-    // Disable foreign keys temporarily for migrations that might affect constraints
-    db.exec('PRAGMA foreign_keys = OFF;');
+    // Initialize migrations table
+    initMigrationsTableSQLite(db);
 
-    console.log('[MIGRATE] Starting migrations...\n');
+    // Get applied migrations
+    const applied = getAppliedMigrationsSQLite(db);
 
-    // Run migrations
-    migratePantryItemsUserId(db);
-    migrateActivitiesUserId(db);
-    migratePantryItemsBarcode(db);
-    migrateIndexes(db);
+    // Run pending SQL migrations
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const migrationFiles = getMigrationFiles(migrationsDir);
 
-    console.log('\n[MIGRATE] All migrations completed successfully');
+    for (const filename of migrationFiles) {
+      if (applied.includes(filename)) {
+        console.log(`[MIGRATION] Skipping ${filename} (already applied)`);
+        continue;
+      }
 
-    // Re-enable foreign keys
-    db.exec('PRAGMA foreign_keys = ON;');
-
-    // Verify migrations
-    console.log('\n[MIGRATE] Verifying migrations...');
-    const verification = {
-      pantryItemsHasUserId: columnExists(db, 'pantry_items', 'user_id'),
-      activitiesHasUserId: columnExists(db, 'activities', 'user_id'),
-      idxPantryUserId: indexExists(db, 'idx_pantry_items_user_id'),
-      idxActivitiesUserId: indexExists(db, 'idx_activities_user_id'),
-    };
-
-    console.log('[MIGRATE] Verification results:');
-    console.log(`  - pantry_items.user_id: ${verification.pantryItemsHasUserId ? '✓' : '✗'}`);
-    console.log(`  - activities.user_id: ${verification.activitiesHasUserId ? '✓' : '✗'}`);
-    console.log(`  - idx_pantry_items_user_id: ${verification.idxPantryUserId ? '✓' : '✗'}`);
-    console.log(`  - idx_activities_user_id: ${verification.idxActivitiesUserId ? '✓' : '✗'}`);
-
-    const allPassed = Object.values(verification).every(Boolean);
-    if (!allPassed) {
-      throw new Error('Migration verification failed!');
+      console.log(`[MIGRATION] Applying ${filename}...`);
+      const filepath = path.join(migrationsDir, filename);
+      runMigrationSQLite(db, filepath);
+      recordMigrationSQLite(db, filename);
+      console.log(`[MIGRATION] Applied ${filename}`);
     }
 
-    console.log('\n[MIGRATE] ✓ Database is ready!');
+    console.log('[MIGRATION] All migrations completed successfully');
   } catch (error) {
-    console.error('[MIGRATE] Migration failed:', error);
+    console.error('[MIGRATION] Migration failed:', error);
     throw error;
   } finally {
     db.close();
   }
 }
 
-// ============================================================================
-// CLI Execution
-// ============================================================================
+export async function runMigrationsPostgres(): Promise<void> {
+  const pool = new Pool({
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+  });
 
-if (require.main === module) {
   try {
-    runMigrations();
-    process.exit(0);
+    // Get applied migrations
+    const applied = await getAppliedMigrationsPostgres(pool);
+
+    // Run pending SQL migrations
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const migrationFiles = getMigrationFiles(migrationsDir);
+
+    for (const filename of migrationFiles) {
+      if (applied.includes(filename)) {
+        console.log(`[MIGRATION] Skipping ${filename} (already applied)`);
+        continue;
+      }
+
+      console.log(`[MIGRATION] Applying ${filename}...`);
+      const filepath = path.join(migrationsDir, filename);
+      await runMigrationPostgres(pool, filepath);
+      await recordMigrationPostgres(pool, filename);
+      console.log(`[MIGRATION] Applied ${filename}`);
+    }
+
+    console.log('[MIGRATION] All migrations completed successfully');
   } catch (error) {
-    console.error('Migration failed:', error);
-    process.exit(1);
+    console.error('[MIGRATION] Migration failed:', error);
+    throw error;
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Run migrations based on database type
+ */
+export function runMigrations(dbPath?: string): void | Promise<void> {
+  if (DB_TYPE === 'postgres') {
+    return runMigrationsPostgres();
+  }
+  return runMigrationsSQLite(dbPath || DB_PATH);
+}
+
+/**
+ * CLI entry point for running migrations
+ */
+if (require.main === module) {
+  console.log('[MIGRATION] Starting...');
+  const result = runMigrations();
+  if (result instanceof Promise) {
+    result
+      .then(() => {
+        console.log('[MIGRATION] Done');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('[MIGRATION] Failed:', err);
+        process.exit(1);
+      });
+  } else {
+    console.log('[MIGRATION] Done');
+    process.exit(0);
   }
 }

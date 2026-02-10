@@ -1,6 +1,6 @@
 # Pantry Tracker API
 
-A production-ready pantry inventory management backend API built with Node.js, Express, TypeScript, and SQLite (via better-sqlite3). Features include receipt scanning integration, visual usage detection, and a complete RESTful API for inventory management.
+A production-ready pantry inventory management backend API built with Node.js, Express, TypeScript, and PostgreSQL/SQLite dual-database support. Features include receipt scanning integration, visual usage detection, user authentication, subscription management, and a complete RESTful API for inventory management.
 
 ## Features
 
@@ -18,7 +18,9 @@ A production-ready pantry inventory management backend API built with Node.js, E
 - **Runtime**: Node.js 18+
 - **Framework**: Express.js 4.x
 - **Language**: TypeScript 5.x
-- **Database**: SQLite (better-sqlite3)
+- **Database**: PostgreSQL (production) / SQLite (local dev via better-sqlite3)
+- **Authentication**: Clerk
+- **Payments**: Stripe
 - **Validation**: Zod
 - **Security**: Helmet, CORS
 - **UUID Generation**: uuid
@@ -29,6 +31,7 @@ A production-ready pantry inventory management backend API built with Node.js, E
 
 - Node.js 18 or higher
 - npm or yarn
+- Docker (optional, for local PostgreSQL)
 
 ### Installation
 
@@ -40,14 +43,47 @@ npm install
 cp .env.example .env
 ```
 
-### Development
+### Local PostgreSQL Development (Recommended)
 
 ```bash
-# Start development server with hot reload
+# Start PostgreSQL in Docker
+npm run db:up
+
+# Run migrations
+npm run db:migrate
+
+# Start development server
+npm run dev:postgres
+```
+
+The API will be available at `http://localhost:3001`
+
+### Local SQLite Development
+
+```bash
+# Start development server with SQLite (no Docker required)
+npm run dev:sqlite
+
+# Or simply (SQLite is default)
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000`
+### Production Build
+
+```bash
+# Build TypeScript
+npm run build
+
+# Start production server
+npm start
+```
+
+### Database Seeding
+
+```bash
+# Seed with sample data
+npm run seed
+```
 
 ### Production Build
 
@@ -262,19 +298,114 @@ GET /api/visual-usage/supported-items
 }
 ```
 
+## Database Switching Guide
+
+The API supports both **SQLite** (local development) and **PostgreSQL** (production and local Docker).
+
+### Switching Databases
+
+Set the `DB_TYPE` environment variable:
+
+```bash
+# Use SQLite (default, no Docker required)
+DB_TYPE=sqlite npm run dev
+
+# Use PostgreSQL (requires Docker postgres or external DB)
+DB_TYPE=postgres npm run db:up
+DB_TYPE=postgres npm run db:migrate
+DB_TYPE=postgres npm run dev
+```
+
+Or use the convenience scripts:
+- `npm run dev:sqlite` - Run with SQLite
+- `npm run dev:postgres` - Run with PostgreSQL
+
+### Database Docker Commands
+
+```bash
+# Start PostgreSQL container
+npm run db:up
+
+# Stop PostgreSQL container
+npm run db:down
+
+# Run migrations
+npm run db:migrate
+```
+
 ## Environment Variables
 
 ```env
 # Server
-PORT=3000
+PORT=3001
 NODE_ENV=development
+USE_HTTPS=true
 
-# Database
+# Database Type: 'sqlite' or 'postgres'
+DB_TYPE=postgres
+
+# SQLite Configuration (when DB_TYPE=sqlite)
 DB_PATH=./data/pantry.db
 
+# PostgreSQL Configuration (when DB_TYPE=postgres)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=pantry_pal
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_SSL=false
+
 # CORS (comma-separated origins in production)
-CORS_ORIGINS=
+CORS_ORIGINS=https://localhost:5173
+
+# Authentication (Clerk)
+CLERK_SECRET_KEY=sk_test_...
+
+# Stripe (for subscriptions)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+
+See `.env.example` for the complete list of environment variables.
+
+## Deployment
+
+### Railway Deployment
+
+This API is configured for easy deployment on [Railway](https://railway.app/).
+
+#### Steps:
+
+1. **Create a Railway project** and add your GitHub repository
+2. **Add a PostgreSQL database** from the Railway dashboard
+3. **Configure environment variables** in Railway:
+   - `DB_TYPE=postgres` (Railway sets DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD automatically)
+   - `CLERK_SECRET_KEY` - Your Clerk secret key
+   - `STRIPE_SECRET_KEY` - Your Stripe secret key
+   - `STRIPE_WEBHOOK_SECRET` - Your Stripe webhook secret
+   - `CORS_ORIGINS` - Your production frontend URL
+4. **Migrations run automatically** on deploy via the `db:migrate` script
+
+#### Manual Deploy:
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and link project
+railway login
+railway link
+
+# Deploy
+railway up
+```
+
+### Other Platforms
+
+The API can be deployed to any Node.js hosting platform that supports:
+- Node.js 18+
+- PostgreSQL database
+- Environment variable configuration
 
 ## Testing
 
@@ -326,7 +457,8 @@ pantry-tracker/
 2. **CORS**: Set `CORS_ORIGINS` to your frontend domains in production.
 3. **Port**: Use a reverse proxy (nginx) in production rather than exposing port 3000.
 4. **Security**: Helmet adds security headers; review configuration for your use case.
-5. **Backup**: The `data/` folder contains your database - back it up!
+5. **Backup**: The `data/` folder contains your SQLite database - back it up!
+6. **PostgreSQL**: In production, use managed PostgreSQL (Railway, Supabase, AWS RDS, etc.).
 
 ## License
 
