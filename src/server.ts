@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 /**
  * Pantry Tracker API Server
  * Production-ready Express server with HTTPS support for local development,
@@ -10,7 +12,6 @@ import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 
 // Import database initialization
 import { getDatabase, closeDatabase } from './db';
@@ -24,10 +25,6 @@ import webhookRouter from './routes/webhook';
 
 // Import services
 import { ensureStripeProducts } from './services/stripe';
-
-// Load environment variables
-const envPath = path.resolve(process.cwd(), '.env');
-dotenv.config({ path: envPath });
 
 // ============================================================================
 // Configuration
