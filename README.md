@@ -27,6 +27,8 @@ A production-ready pantry inventory management backend API built with Node.js, E
 
 ## Quick Start
 
+> 📚 **New to the project?** Check the [Testing, Build & Deployment Guide](./TESTING.md) for detailed setup instructions, ngrok configuration, environment variables, and troubleshooting.
+
 ### Prerequisites
 
 - Node.js 18 or higher
@@ -335,6 +337,8 @@ npm run db:migrate
 
 ## Environment Variables
 
+> 📚 See **[TESTING.md#environment-variables](./TESTING.md#environment-variables)** for the complete environment variable reference.
+
 ```env
 # Server
 PORT=3001
@@ -369,6 +373,8 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 See `.env.example` for the complete list of environment variables.
 
 ## Deployment
+
+> 📚 For detailed deployment instructions including ngrok setup, see **[TESTING.md](./TESTING.md)**.
 
 ### Railway Deployment
 
@@ -408,6 +414,10 @@ The API can be deployed to any Node.js hosting platform that supports:
 - Environment variable configuration
 
 ## Testing
+
+For comprehensive testing, build, and deployment documentation, see **[TESTING.md](./TESTING.md)**.
+
+> ⚠️ **Note:** Automated tests are not yet configured. See TESTING.md for test setup roadmap.
 
 ### Health Check
 ```bash
