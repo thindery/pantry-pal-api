@@ -161,6 +161,9 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
     const stmt = db.prepare(query);
     const rows = stmt.all(...params) as (PantryItemRow & { barcode?: string | null })[];
+    
+    // Debug logging to track persistence issues
+    console.log(`[DB] getAllItems: userId=${userId}, category=${category || 'all'}, found=${rows.length} items`);
 
     return rows.map(mapPantryItemRow);
   }
@@ -196,7 +199,15 @@ export class SQLiteAdapter implements DatabaseAdapter {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(id, userId, input.name, input.barcode || null, input.quantity, input.unit, input.category, now);
+    const result = stmt.run(id, userId, input.name, input.barcode || null, input.quantity, input.unit, input.category, now);
+    
+    // Debug logging to track persistence issues
+    console.log(`[DB] createItem: inserted id=${id}, changes=${result.changes}, lastInsertRowid=${result.lastInsertRowid}`);
+    
+    // Verify the insert actually worked
+    if (result.changes === 0) {
+      throw new Error('Failed to insert item: no rows affected');
+    }
 
     return {
       id,
