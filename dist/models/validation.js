@@ -12,6 +12,10 @@ exports.createItemSchema = zod_1.z.object({
         .min(1, 'Item name is required')
         .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
         .trim(),
+    barcode: zod_1.z
+        .string()
+        .max(50, 'Barcode must be less than 50 characters')
+        .optional(),
     quantity: zod_1.z
         .number()
         .min(0, 'Quantity must be non-negative')
@@ -33,6 +37,10 @@ exports.updateItemSchema = zod_1.z.object({
         .min(1, 'Item name cannot be empty')
         .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
         .trim()
+        .optional(),
+    barcode: zod_1.z
+        .string()
+        .max(50, 'Barcode must be less than 50 characters')
         .optional(),
     quantity: zod_1.z
         .number()

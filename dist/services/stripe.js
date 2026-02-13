@@ -102,7 +102,7 @@ async function createCheckoutSession(options) {
         throw new Error(`Price not configured for ${tier}/${billingInterval}`);
     }
     let customerId;
-    const existingSub = (0, subscription_1.getUserSubscription)(userId);
+    const existingSub = await (0, subscription_1.getUserSubscription)(userId);
     if (existingSub?.stripeCustomerId) {
         customerId = existingSub.stripeCustomerId;
     }
@@ -146,7 +146,7 @@ async function createCheckoutSession(options) {
     };
 }
 async function createCustomerPortalSession(userId, returnUrl) {
-    const subscription = (0, subscription_1.getUserSubscription)(userId);
+    const subscription = await (0, subscription_1.getUserSubscription)(userId);
     if (!subscription?.stripeCustomerId) {
         throw new Error('No Stripe customer found for this user');
     }

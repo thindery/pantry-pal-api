@@ -168,10 +168,20 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const userId = req.userId!;
+    const itemId = req.params.id;
+    
+    // DEBUG: Log incoming request details
+    console.log(`[PUT /api/items/:id] Request received:`, {
+      itemId,
+      userId,
+      body: req.body,
+      contentType: req.headers['content-type'],
+    });
     
     // Validate ID
-    const idValidation = itemIdSchema.safeParse({ id: req.params.id });
+    const idValidation = itemIdSchema.safeParse({ id: itemId });
     if (!idValidation.success) {
+      console.log(`[PUT /api/items/:id] ID validation failed:`, idValidation.error.errors);
       res.status(400).json(
         errorResponse('VALIDATION_ERROR', 'Invalid item ID format')
       );
@@ -181,6 +191,7 @@ router.put('/:id', async (req, res) => {
     // Validate body (needs at least one field)
     const bodyValidation = updateItemSchema.safeParse(req.body);
     if (!bodyValidation.success) {
+      console.log(`[PUT /api/items/:id] Body validation failed:`, bodyValidation.error.errors);
       res.status(400).json(
         errorResponse('VALIDATION_ERROR', 'Invalid request body', {
           errors: bodyValidation.error.errors,
@@ -191,21 +202,33 @@ router.put('/:id', async (req, res) => {
 
     // Check if any fields were provided
     if (Object.keys(req.body).length === 0) {
+      console.log(`[PUT /api/items/:id] Empty body rejected`);
       res.status(400).json(
         errorResponse('VALIDATION_ERROR', 'At least one field must be provided for update')
       );
       return;
     }
 
-    const updatedItem = await updateItem(userId, req.params.id, bodyValidation.data);
+    console.log(`[PUT /api/items/:id] Calling updateItem with:`, {
+      userId,
+      itemId,
+      data: bodyValidation.data,
+    });
+
+    const updatedItem = await updateItem(userId, itemId, bodyValidation.data);
+
+    // DEBUG: Log result
+    console.log(`[PUT /api/items/:id] updateItem result:`, updatedItem);
 
     if (!updatedItem) {
+      console.log(`[PUT /api/items/:id] Item not found or update failed for id=${itemId}`);
       res.status(404).json(
-        errorResponse('NOT_FOUND', `Item with ID ${req.params.id} not found`)
+        errorResponse('NOT_FOUND', `Item with ID ${itemId} not found`)
       );
       return;
     }
 
+    console.log(`[PUT /api/items/:id] Success - returning updated item:`, updatedItem);
     res.json(successResponse(updatedItem));
   } catch (error) {
     console.error('[PUT /items/:id] Error:', error);

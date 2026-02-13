@@ -23,7 +23,7 @@ function requireTier(minimumTier) {
                 });
                 return;
             }
-            const subscription = (0, subscription_1.getOrCreateUserSubscription)(userId);
+            const subscription = await (0, subscription_1.getOrCreateUserSubscription)(userId);
             const tierLevels = { free: 0, pro: 1, family: 2 };
             if (tierLevels[subscription.tier] < tierLevels[minimumTier]) {
                 res.status(403).json({
@@ -61,7 +61,7 @@ function requireTier(minimumTier) {
         }
     };
 }
-function checkItemLimit(req, res, next) {
+async function checkItemLimit(req, res, next) {
     try {
         const userId = req.userId;
         if (!userId) {
@@ -75,8 +75,8 @@ function checkItemLimit(req, res, next) {
             });
             return;
         }
-        const items = (0, db_1.getAllItems)(userId);
-        const check = (0, subscription_1.canAddItems)(userId, items.length);
+        const items = await (0, db_1.getAllItems)(userId);
+        const check = await (0, subscription_1.canAddItems)(userId, items.length);
         if (!check.allowed) {
             res.status(403).json({
                 success: false,
@@ -85,7 +85,7 @@ function checkItemLimit(req, res, next) {
                     message: `You've reached the free tier limit of ${items.length} items`,
                     details: {
                         currentItems: items.length,
-                        maxItems: items.length,
+                        maxItems: items.length + check.remaining,
                         upgradeUrl: '/pricing',
                         upgradeMessage: 'Upgrade to Pro for unlimited items',
                     },
@@ -108,14 +108,14 @@ function checkItemLimit(req, res, next) {
         });
     }
 }
-function trackReceiptScan(req, res, next) {
+async function trackReceiptScan(req, res, next) {
     try {
         const userId = req.userId;
         if (!userId) {
             next();
             return;
         }
-        const check = (0, subscription_1.canScanReceipt)(userId);
+        const check = await (0, subscription_1.canScanReceipt)(userId);
         if (!check.allowed) {
             res.status(403).json({
                 success: false,
@@ -140,7 +140,7 @@ function trackReceiptScan(req, res, next) {
         next();
     }
 }
-function checkVoiceAssistantAccess(req, res, next) {
+async function checkVoiceAssistantAccess(req, res, next) {
     try {
         const userId = req.userId;
         if (!userId) {
@@ -154,7 +154,7 @@ function checkVoiceAssistantAccess(req, res, next) {
             });
             return;
         }
-        if (!(0, subscription_1.canUseVoiceAssistant)(userId)) {
+        if (!(await (0, subscription_1.canUseVoiceAssistant)(userId))) {
             res.status(403).json({
                 success: false,
                 error: {

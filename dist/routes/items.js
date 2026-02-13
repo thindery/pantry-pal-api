@@ -6,12 +6,13 @@ const auth_1 = require("../middleware/auth");
 const validation_1 = require("../models/validation");
 const router = (0, express_1.Router)();
 router.use(auth_1.requireAuth);
-function successResponse(data) {
+function successResponse(data, userId) {
     return {
         success: true,
         data,
         meta: {
             timestamp: new Date().toISOString(),
+            ...(userId && { userId }),
         },
     };
 }
@@ -33,7 +34,7 @@ router.get('/', async (req, res) => {
         const { category } = req.query;
         const userId = req.userId;
         const items = await (0, db_1.getAllItems)(userId, category);
-        res.json(successResponse(items));
+        res.json(successResponse(items, userId));
     }
     catch (error) {
         console.error('[GET /items] Error:', error);
@@ -84,7 +85,7 @@ router.post('/', async (req, res) => {
             return;
         }
         const newItem = await (0, db_1.createItem)(userId, validation.data);
-        res.status(201).json(successResponse(newItem));
+        res.status(201).json(successResponse(newItem, userId));
     }
     catch (error) {
         console.error('[POST /items] Error:', error);
@@ -94,27 +95,45 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const userId = req.userId;
-        const idValidation = validation_1.itemIdSchema.safeParse({ id: req.params.id });
+        const itemId = req.params.id;
+        console.log(`[PUT /api/items/:id] Request received:`, {
+            itemId,
+            userId,
+            body: req.body,
+            contentType: req.headers['content-type'],
+        });
+        const idValidation = validation_1.itemIdSchema.safeParse({ id: itemId });
         if (!idValidation.success) {
+            console.log(`[PUT /api/items/:id] ID validation failed:`, idValidation.error.errors);
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid item ID format'));
             return;
         }
         const bodyValidation = validation_1.updateItemSchema.safeParse(req.body);
         if (!bodyValidation.success) {
+            console.log(`[PUT /api/items/:id] Body validation failed:`, bodyValidation.error.errors);
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid request body', {
                 errors: bodyValidation.error.errors,
             }));
             return;
         }
         if (Object.keys(req.body).length === 0) {
+            console.log(`[PUT /api/items/:id] Empty body rejected`);
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'At least one field must be provided for update'));
             return;
         }
-        const updatedItem = await (0, db_1.updateItem)(userId, req.params.id, bodyValidation.data);
+        console.log(`[PUT /api/items/:id] Calling updateItem with:`, {
+            userId,
+            itemId,
+            data: bodyValidation.data,
+        });
+        const updatedItem = await (0, db_1.updateItem)(userId, itemId, bodyValidation.data);
+        console.log(`[PUT /api/items/:id] updateItem result:`, updatedItem);
         if (!updatedItem) {
-            res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${req.params.id} not found`));
+            console.log(`[PUT /api/items/:id] Item not found or update failed for id=${itemId}`);
+            res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${itemId} not found`));
             return;
         }
+        console.log(`[PUT /api/items/:id] Success - returning updated item:`, updatedItem);
         res.json(successResponse(updatedItem));
     }
     catch (error) {

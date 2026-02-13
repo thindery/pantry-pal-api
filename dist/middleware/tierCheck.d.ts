@@ -12,8 +12,8 @@ declare global {
     }
 }
 export declare function requireTier(minimumTier: UserTier): (req: Request, res: Response, next: NextFunction) => Promise<void>;
-export declare function checkItemLimit(req: Request, res: Response, next: NextFunction): void;
-export declare function trackReceiptScan(req: Request, res: Response, next: NextFunction): void;
-export declare function checkVoiceAssistantAccess(req: Request, res: Response, next: NextFunction): void;
+export declare function checkItemLimit(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function trackReceiptScan(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function checkVoiceAssistantAccess(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function trackVoiceSession(userId: string): void;
 //# sourceMappingURL=tierCheck.d.ts.map

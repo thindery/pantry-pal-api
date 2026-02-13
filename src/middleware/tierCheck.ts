@@ -48,7 +48,7 @@ export function requireTier(minimumTier: UserTier) {
         return;
       }
 
-      const subscription = getOrCreateUserSubscription(userId);
+      const subscription = await getOrCreateUserSubscription(userId);
       const tierLevels: Record<UserTier, number> = { free: 0, pro: 1, family: 2 };
 
       if (tierLevels[subscription.tier] < tierLevels[minimumTier]) {
@@ -94,7 +94,7 @@ export function requireTier(minimumTier: UserTier) {
  * Middleware to check item limit before allowing creation
  * Returns 403 with upgrade prompt if at limit
  */
-export function checkItemLimit(req: Request, res: Response, next: NextFunction): void {
+export async function checkItemLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.userId;
 
@@ -110,8 +110,8 @@ export function checkItemLimit(req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const items = getAllItems(userId);
-    const check = canAddItems(userId, items.length);
+    const items = await getAllItems(userId);
+    const check = await canAddItems(userId, items.length);
 
     if (!check.allowed) {
       res.status(403).json({
@@ -121,7 +121,7 @@ export function checkItemLimit(req: Request, res: Response, next: NextFunction):
           message: `You've reached the free tier limit of ${items.length} items`,
           details: {
             currentItems: items.length,
-            maxItems: items.length,
+            maxItems: items.length + check.remaining,
             upgradeUrl: '/pricing',
             upgradeMessage: 'Upgrade to Pro for unlimited items',
           },
@@ -148,7 +148,7 @@ export function checkItemLimit(req: Request, res: Response, next: NextFunction):
 /**
  * Middleware to track and check receipt scan usage
  */
-export function trackReceiptScan(req: Request, res: Response, next: NextFunction): void {
+export async function trackReceiptScan(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.userId;
 
@@ -158,7 +158,7 @@ export function trackReceiptScan(req: Request, res: Response, next: NextFunction
     }
 
     // Check first
-    const check = canScanReceipt(userId);
+    const check = await canScanReceipt(userId);
 
     if (!check.allowed) {
       res.status(403).json({
@@ -191,7 +191,7 @@ export function trackReceiptScan(req: Request, res: Response, next: NextFunction
 /**
  * Middleware to check voice assistant access
  */
-export function checkVoiceAssistantAccess(req: Request, res: Response, next: NextFunction): void {
+export async function checkVoiceAssistantAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.userId;
 
@@ -207,7 +207,7 @@ export function checkVoiceAssistantAccess(req: Request, res: Response, next: Nex
       return;
     }
 
-    if (!canUseVoiceAssistant(userId)) {
+    if (!(await canUseVoiceAssistant(userId))) {
       res.status(403).json({
         success: false,
         error: {

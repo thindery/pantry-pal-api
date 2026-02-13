@@ -149,7 +149,7 @@ export async function createCheckoutSession(
 
   // Get or create customer (we'll create a new one or use existing)
   let customerId: string;
-  const existingSub = getUserSubscription(userId);
+  const existingSub = await getUserSubscription(userId);
 
   if (existingSub?.stripeCustomerId) {
     customerId = existingSub.stripeCustomerId;
@@ -211,7 +211,7 @@ export async function createCustomerPortalSession(
   userId: string,
   returnUrl: string
 ): Promise<{ url: string }> {
-  const subscription = getUserSubscription(userId);
+  const subscription = await getUserSubscription(userId);
 
   if (!subscription?.stripeCustomerId) {
     throw new Error('No Stripe customer found for this user');

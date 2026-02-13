@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ActivityType, ActivitySource } from './types';
 export declare const createItemSchema: z.ZodObject<{
     name: z.ZodString;
+    barcode: z.ZodOptional<z.ZodString>;
     quantity: z.ZodNumber;
     unit: z.ZodString;
     category: z.ZodString;
@@ -10,24 +11,29 @@ export declare const createItemSchema: z.ZodObject<{
     quantity: number;
     unit: string;
     category: string;
+    barcode?: string | undefined;
 }, {
     name: string;
     quantity: number;
     unit: string;
     category: string;
+    barcode?: string | undefined;
 }>;
 export declare const updateItemSchema: z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
+    barcode: z.ZodOptional<z.ZodString>;
     quantity: z.ZodOptional<z.ZodNumber>;
     unit: z.ZodOptional<z.ZodString>;
     category: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     name?: string | undefined;
+    barcode?: string | undefined;
     quantity?: number | undefined;
     unit?: string | undefined;
     category?: string | undefined;
 }, {
     name?: string | undefined;
+    barcode?: string | undefined;
     quantity?: number | undefined;
     unit?: string | undefined;
     category?: string | undefined;

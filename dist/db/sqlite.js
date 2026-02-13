@@ -182,7 +182,12 @@ class SQLiteAdapter {
         params.push(id);
         const query = `UPDATE pantry_items SET ${updates.join(', ')} WHERE user_id = ? AND id = ?`;
         const stmt = db.prepare(query);
-        stmt.run(...params);
+        const result = stmt.run(...params);
+        console.log(`[DB] updateItem: userId=${userId}, id=${id}, changes=${result.changes}`);
+        if (result.changes === 0) {
+            console.warn(`[DB] updateItem: No rows updated for userId=${userId}, id=${id}`);
+            return null;
+        }
         return this.getItemById(userId, id);
     }
     async deleteItem(userId, id) {
@@ -203,7 +208,12 @@ class SQLiteAdapter {
       SET quantity = ?, last_updated = ? 
       WHERE user_id = ? AND id = ?
     `);
-        stmt.run(newQuantity, now, userId, id);
+        const result = stmt.run(newQuantity, now, userId, id);
+        console.log(`[DB] adjustItemQuantity: userId=${userId}, id=${id}, adjustment=${adjustment}, changes=${result.changes}`);
+        if (result.changes === 0) {
+            console.warn(`[DB] adjustItemQuantity: No rows updated for userId=${userId}, id=${id}`);
+            return null;
+        }
         return this.getItemById(userId, id);
     }
     async getCategories(userId) {
