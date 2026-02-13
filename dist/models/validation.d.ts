@@ -51,10 +51,10 @@ export declare const createActivitySchema: z.ZodObject<{
     amount: z.ZodNumber;
     source: z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodEnum<["MANUAL", "RECEIPT_SCAN", "VISUAL_USAGE"]>>>, ActivitySource, "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined>;
 }, "strip", z.ZodTypeAny, {
+    source: ActivitySource;
     itemId: string;
     type: ActivityType;
     amount: number;
-    source: ActivitySource;
 }, {
     itemId: string;
     type: "ADD" | "REMOVE" | "ADJUST";

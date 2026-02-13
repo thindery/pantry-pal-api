@@ -17,6 +17,8 @@ import {
   ActivitySource,
   ScanResult,
   UsageResult,
+  ProductInfo,
+  ProductCacheInput,
 } from '../models/types';
 
 // ============================================================================
@@ -127,6 +129,23 @@ export class SQLiteAdapter implements DatabaseAdapter {
       );
     `);
 
+    // Product cache table for barcode lookups
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS product_cache (
+        barcode TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        brand TEXT,
+        category TEXT NOT NULL,
+        image_url TEXT,
+        ingredients TEXT,
+        nutrition TEXT,
+        source TEXT NOT NULL,
+        info_last_synced TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Indexes for performance
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
@@ -137,6 +156,8 @@ export class SQLiteAdapter implements DatabaseAdapter {
       CREATE INDEX IF NOT EXISTS idx_activities_item_id ON activities(item_id);
       CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+      CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
+      CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
     `);
 
     console.log('[DB] SQLite schema initialized successfully');
@@ -571,5 +592,114 @@ export class SQLiteAdapter implements DatabaseAdapter {
   transaction<T>(fn: () => T): T {
     const db = this.getDatabase();
     return db.transaction(fn)();
+  }
+
+  // ==========================================================================
+  // Barcode / Product Cache Operations
+  // ==========================================================================
+
+  async getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null> {
+    const db = this.getDatabase();
+
+    // If maxAgeDays is specified, check cache freshness
+    if (maxAgeDays !== undefined) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+      const cutoffIso = cutoffDate.toISOString();
+
+      const stmt = db.prepare(
+        `SELECT * FROM product_cache 
+         WHERE barcode = ? AND info_last_synced >= ?`
+      );
+      const row = stmt.get(barcode, cutoffIso) as {
+        barcode: string;
+        name: string;
+        brand?: string;
+        category: string;
+        image_url?: string;
+        ingredients?: string;
+        nutrition?: string;
+        source: string;
+        info_last_synced: string;
+      } | undefined;
+
+      if (row) {
+        return {
+          barcode: row.barcode,
+          name: row.name,
+          brand: row.brand,
+          category: row.category,
+          imageUrl: row.image_url,
+          ingredients: row.ingredients,
+          nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+          source: row.source,
+          infoLastSynced: row.info_last_synced,
+        };
+      }
+      return null;
+    }
+
+    // No age limit - return any cached product
+    const stmt = db.prepare('SELECT * FROM product_cache WHERE barcode = ?');
+    const row = stmt.get(barcode) as {
+      barcode: string;
+      name: string;
+      brand?: string;
+      category: string;
+      image_url?: string;
+      ingredients?: string;
+      nutrition?: string;
+      source: string;
+      info_last_synced: string;
+    } | undefined;
+
+    if (!row) return null;
+
+    return {
+      barcode: row.barcode,
+      name: row.name,
+      brand: row.brand,
+      category: row.category,
+      imageUrl: row.image_url,
+      ingredients: row.ingredients,
+      nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+      source: row.source,
+      infoLastSynced: row.info_last_synced,
+    };
+  }
+
+  async saveProduct(input: ProductCacheInput): Promise<void> {
+    const db = this.getDatabase();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare(`
+      INSERT INTO product_cache (
+        barcode, name, brand, category, image_url, ingredients, 
+        nutrition, source, info_last_synced, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(barcode) DO UPDATE SET
+        name = excluded.name,
+        brand = excluded.brand,
+        category = excluded.category,
+        image_url = excluded.image_url,
+        ingredients = excluded.ingredients,
+        nutrition = excluded.nutrition,
+        source = excluded.source,
+        info_last_synced = excluded.info_last_synced,
+        updated_at = excluded.updated_at
+    `);
+
+    stmt.run(
+      input.barcode,
+      input.name,
+      input.brand || null,
+      input.category,
+      input.imageUrl || null,
+      input.ingredients || null,
+      input.nutrition ? JSON.stringify(input.nutrition) : null,
+      input.source,
+      now,
+      now
+    );
   }
 }

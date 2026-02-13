@@ -10,6 +10,8 @@ import {
   ActivitySource,
   ScanResult,
   UsageResult,
+  ProductInfo,
+  ProductCacheInput,
 } from '../models/types';
 
 /**
@@ -149,6 +151,24 @@ export interface DatabaseAdapter {
     detections: UsageResult[],
     source?: string
   ): Promise<{ processed: UsageResult[]; activities: Activity[]; errors: string[] }>;
+
+  // ==========================================================================
+  // Barcode / Product Cache Operations
+  // ==========================================================================
+
+  /**
+   * Look up a cached product by barcode
+   * @param barcode The barcode to look up
+   * @param maxAgeDays Maximum age of cache in days (optional - returns stale if not specified)
+   * @returns ProductInfo if found and not stale, null otherwise
+   */
+  getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null>;
+
+  /**
+   * Save a product to the cache
+   * Updates if exists, inserts if not
+   */
+  saveProduct(input: ProductCacheInput): Promise<void>;
 
   // ==========================================================================
   // Raw Query Access (for subscription service)

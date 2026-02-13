@@ -87,6 +87,21 @@ class SQLiteAdapter {
       );
     `);
         db.exec(`
+      CREATE TABLE IF NOT EXISTS product_cache (
+        barcode TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        brand TEXT,
+        category TEXT NOT NULL,
+        image_url TEXT,
+        ingredients TEXT,
+        nutrition TEXT,
+        source TEXT NOT NULL,
+        info_last_synced TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+        db.exec(`
       CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
       CREATE INDEX IF NOT EXISTS idx_pantry_items_category ON pantry_items(category);
       CREATE INDEX IF NOT EXISTS idx_pantry_items_name ON pantry_items(name);
@@ -95,6 +110,8 @@ class SQLiteAdapter {
       CREATE INDEX IF NOT EXISTS idx_activities_item_id ON activities(item_id);
       CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+      CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
+      CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
     `);
         console.log('[DB] SQLite schema initialized successfully');
     }
@@ -380,6 +397,67 @@ class SQLiteAdapter {
     transaction(fn) {
         const db = this.getDatabase();
         return db.transaction(fn)();
+    }
+    async getProductByBarcode(barcode, maxAgeDays) {
+        const db = this.getDatabase();
+        if (maxAgeDays !== undefined) {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+            const cutoffIso = cutoffDate.toISOString();
+            const stmt = db.prepare(`SELECT * FROM product_cache 
+         WHERE barcode = ? AND info_last_synced >= ?`);
+            const row = stmt.get(barcode, cutoffIso);
+            if (row) {
+                return {
+                    barcode: row.barcode,
+                    name: row.name,
+                    brand: row.brand,
+                    category: row.category,
+                    imageUrl: row.image_url,
+                    ingredients: row.ingredients,
+                    nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+                    source: row.source,
+                    infoLastSynced: row.info_last_synced,
+                };
+            }
+            return null;
+        }
+        const stmt = db.prepare('SELECT * FROM product_cache WHERE barcode = ?');
+        const row = stmt.get(barcode);
+        if (!row)
+            return null;
+        return {
+            barcode: row.barcode,
+            name: row.name,
+            brand: row.brand,
+            category: row.category,
+            imageUrl: row.image_url,
+            ingredients: row.ingredients,
+            nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+            source: row.source,
+            infoLastSynced: row.info_last_synced,
+        };
+    }
+    async saveProduct(input) {
+        const db = this.getDatabase();
+        const now = new Date().toISOString();
+        const stmt = db.prepare(`
+      INSERT INTO product_cache (
+        barcode, name, brand, category, image_url, ingredients, 
+        nutrition, source, info_last_synced, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(barcode) DO UPDATE SET
+        name = excluded.name,
+        brand = excluded.brand,
+        category = excluded.category,
+        image_url = excluded.image_url,
+        ingredients = excluded.ingredients,
+        nutrition = excluded.nutrition,
+        source = excluded.source,
+        info_last_synced = excluded.info_last_synced,
+        updated_at = excluded.updated_at
+    `);
+        stmt.run(input.barcode, input.name, input.brand || null, input.category, input.imageUrl || null, input.ingredients || null, input.nutrition ? JSON.stringify(input.nutrition) : null, input.source, now, now);
     }
 }
 exports.SQLiteAdapter = SQLiteAdapter;

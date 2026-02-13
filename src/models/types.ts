@@ -222,6 +222,65 @@ export interface ResponseMeta {
 }
 
 // ============================================================================
+// Barcode & Product Cache Types
+// ============================================================================
+
+/**
+ * Product information returned from barcode lookup
+ * Cached to reduce third-party API calls
+ */
+export interface ProductInfo {
+  /** The barcode (UPC/EAN) */
+  barcode: string;
+  /** Product name */
+  name: string;
+  /** Brand name (optional) */
+  brand?: string;
+  /** Product category */
+  category: string;
+  /** Product image URL (optional) */
+  imageUrl?: string;
+  /** Ingredients list (optional) */
+  ingredients?: string;
+  /** Nutrition information per 100g (optional) */
+  nutrition?: Record<string, number>;
+  /** Data source (e.g., 'openfoodfacts') */
+  source: string;
+  /** ISO 8601 timestamp of when info was last synced */
+  infoLastSynced: string;
+}
+
+/**
+ * Barcode lookup response format
+ */
+export interface BarcodeLookupResponse {
+  /** Whether the lookup was successful */
+  success: boolean;
+  /** Whether the result came from local cache */
+  cached: boolean;
+  /** Product information (if successful) */
+  product?: ProductInfo;
+  /** Error message (if unsuccessful) */
+  error?: string;
+  /** Whether the cached data is stale */
+  stale?: boolean;
+}
+
+/**
+ * Input type for saving a product to the cache
+ */
+export interface ProductCacheInput {
+  barcode: string;
+  name: string;
+  brand?: string;
+  category: string;
+  imageUrl?: string;
+  ingredients?: string;
+  nutrition?: Record<string, number>;
+  source: string;
+}
+
+// ============================================================================
 // Database Types
 // ============================================================================
 

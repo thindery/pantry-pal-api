@@ -105,6 +105,34 @@ export interface ResponseMeta {
     limit?: number;
     timestamp: string;
 }
+export interface ProductInfo {
+    barcode: string;
+    name: string;
+    brand?: string;
+    category: string;
+    imageUrl?: string;
+    ingredients?: string;
+    nutrition?: Record<string, number>;
+    source: string;
+    infoLastSynced: string;
+}
+export interface BarcodeLookupResponse {
+    success: boolean;
+    cached: boolean;
+    product?: ProductInfo;
+    error?: string;
+    stale?: boolean;
+}
+export interface ProductCacheInput {
+    barcode: string;
+    name: string;
+    brand?: string;
+    category: string;
+    imageUrl?: string;
+    ingredients?: string;
+    nutrition?: Record<string, number>;
+    source: string;
+}
 export interface DatabaseConfig {
     path: string;
     verbose?: boolean;

@@ -1,4 +1,4 @@
-import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult } from '../models/types';
+import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
 export interface CreateItemInput {
     name: string;
     quantity: number;
@@ -33,6 +33,8 @@ export interface DatabaseAdapter {
         activities: Activity[];
         errors: string[];
     }>;
+    getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null>;
+    saveProduct(input: ProductCacheInput): Promise<void>;
     query(sql: string, params?: unknown[]): Promise<unknown[]> | unknown[];
     execute(sql: string, params?: unknown[]): Promise<{
         changes: number;

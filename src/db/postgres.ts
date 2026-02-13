@@ -15,6 +15,8 @@ import {
   ActivitySource,
   ScanResult,
   UsageResult,
+  ProductInfo,
+  ProductCacheInput,
 } from '../models/types';
 
 // ============================================================================
@@ -140,6 +142,23 @@ export class PostgresAdapter implements DatabaseAdapter {
         );
       `);
 
+      // Product cache table for barcode lookups
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS product_cache (
+          barcode TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          brand TEXT,
+          category TEXT NOT NULL,
+          image_url TEXT,
+          ingredients TEXT,
+          nutrition TEXT,
+          source TEXT NOT NULL,
+          info_last_synced TEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
       // Indexes for performance
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
@@ -150,6 +169,8 @@ export class PostgresAdapter implements DatabaseAdapter {
         CREATE INDEX IF NOT EXISTS idx_activities_item_id ON activities(item_id);
         CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities(timestamp DESC);
         CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+        CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
+        CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
       `);
 
       console.log('[DB] PostgreSQL schema initialized successfully');
@@ -626,5 +647,119 @@ export class PostgresAdapter implements DatabaseAdapter {
     } finally {
       client.release();
     }
+  }
+
+  // ==========================================================================
+  // Barcode / Product Cache Operations
+  // ==========================================================================
+
+  async getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null> {
+    const pool = this.getPool();
+
+    // If maxAgeDays is specified, check cache freshness
+    if (maxAgeDays !== undefined) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+      const cutoffIso = cutoffDate.toISOString();
+
+      const result = await pool.query(
+        `SELECT * FROM product_cache 
+         WHERE barcode = $1 AND info_last_synced >= $2`,
+        [barcode, cutoffIso]
+      );
+
+      const row = result.rows[0] as {
+        barcode: string;
+        name: string;
+        brand?: string;
+        category: string;
+        image_url?: string;
+        ingredients?: string;
+        nutrition?: string;
+        source: string;
+        info_last_synced: string;
+      } | undefined;
+
+      if (row) {
+        return {
+          barcode: row.barcode,
+          name: row.name,
+          brand: row.brand,
+          category: row.category,
+          imageUrl: row.image_url,
+          ingredients: row.ingredients,
+          nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+          source: row.source,
+          infoLastSynced: row.info_last_synced,
+        };
+      }
+      return null;
+    }
+
+    // No age limit - return any cached product
+    const result = await pool.query(
+      'SELECT * FROM product_cache WHERE barcode = $1',
+      [barcode]
+    );
+
+    const row = result.rows[0] as {
+      barcode: string;
+      name: string;
+      brand?: string;
+      category: string;
+      image_url?: string;
+      ingredients?: string;
+      nutrition?: string;
+      source: string;
+      info_last_synced: string;
+    } | undefined;
+
+    if (!row) return null;
+
+    return {
+      barcode: row.barcode,
+      name: row.name,
+      brand: row.brand,
+      category: row.category,
+      imageUrl: row.image_url,
+      ingredients: row.ingredients,
+      nutrition: row.nutrition ? JSON.parse(row.nutrition) : undefined,
+      source: row.source,
+      infoLastSynced: row.info_last_synced,
+    };
+  }
+
+  async saveProduct(input: ProductCacheInput): Promise<void> {
+    const pool = this.getPool();
+    const now = new Date().toISOString();
+
+    await pool.query(
+      `INSERT INTO product_cache (
+        barcode, name, brand, category, image_url, ingredients, 
+        nutrition, source, info_last_synced, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT(barcode) DO UPDATE SET
+        name = EXCLUDED.name,
+        brand = EXCLUDED.brand,
+        category = EXCLUDED.category,
+        image_url = EXCLUDED.image_url,
+        ingredients = EXCLUDED.ingredients,
+        nutrition = EXCLUDED.nutrition,
+        source = EXCLUDED.source,
+        info_last_synced = EXCLUDED.info_last_synced,
+        updated_at = EXCLUDED.updated_at`,
+      [
+        input.barcode,
+        input.name,
+        input.brand || null,
+        input.category,
+        input.imageUrl || null,
+        input.ingredients || null,
+        input.nutrition ? JSON.stringify(input.nutrition) : null,
+        input.source,
+        now,
+        now,
+      ]
+    );
   }
 }

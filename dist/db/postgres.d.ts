@@ -1,5 +1,5 @@
 import { DatabaseAdapter, CreateItemInput, UpdateItemInput } from './adapter';
-import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult } from '../models/types';
+import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
 export declare class PostgresAdapter implements DatabaseAdapter {
     private pool;
     initialize(): void;
@@ -32,5 +32,7 @@ export declare class PostgresAdapter implements DatabaseAdapter {
         lastID?: string | number;
     }>;
     transaction<T>(fn: () => Promise<T> | T): Promise<T>;
+    getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null>;
+    saveProduct(input: ProductCacheInput): Promise<void>;
 }
 //# sourceMappingURL=postgres.d.ts.map

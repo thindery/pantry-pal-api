@@ -1,5 +1,5 @@
 import { DatabaseAdapter, CreateItemInput, UpdateItemInput } from './adapter';
-import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult } from '../models/types';
+import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
 export declare class SQLiteAdapter implements DatabaseAdapter {
     private db;
     initialize(): void;
@@ -31,5 +31,7 @@ export declare class SQLiteAdapter implements DatabaseAdapter {
         lastID?: string | number;
     }>;
     transaction<T>(fn: () => T): T;
+    getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null>;
+    saveProduct(input: ProductCacheInput): Promise<void>;
 }
 //# sourceMappingURL=sqlite.d.ts.map
