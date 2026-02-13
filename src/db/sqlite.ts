@@ -30,7 +30,7 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 // Row Mappers
 // ============================================================================
 
-function mapPantryItemRow(row: PantryItemRow & { barcode?: string | null }): PantryItem {
+function mapPantryItemRow(row: PantryItemRow): PantryItem {
   return {
     id: row.id,
     userId: row.user_id,
@@ -160,7 +160,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
     query += ' ORDER BY name COLLATE NOCASE';
 
     const stmt = db.prepare(query);
-    const rows = stmt.all(...params) as (PantryItemRow & { barcode?: string | null })[];
+    const rows = stmt.all(...params) as PantryItemRow[];
     
     // Debug logging to track persistence issues
     console.log(`[DB] getAllItems: userId=${userId}, category=${category || 'all'}, found=${rows.length} items`);
@@ -172,7 +172,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
     const db = this.getDatabase();
 
     const stmt = db.prepare('SELECT * FROM pantry_items WHERE user_id = ? AND id = ?');
-    const row = stmt.get(userId, id) as (PantryItemRow & { barcode?: string | null }) | undefined;
+    const row = stmt.get(userId, id) as PantryItemRow | undefined;
 
     return row ? mapPantryItemRow(row) : null;
   }
@@ -183,7 +183,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
     const stmt = db.prepare(
       'SELECT * FROM pantry_items WHERE user_id = ? AND LOWER(name) = LOWER(?)'
     );
-    const row = stmt.get(userId, name) as (PantryItemRow & { barcode?: string | null }) | undefined;
+    const row = stmt.get(userId, name) as PantryItemRow | undefined;
 
     return row ? mapPantryItemRow(row) : null;
   }

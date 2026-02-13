@@ -44,6 +44,7 @@ export interface PantryItem {
 export interface PantryItemRow {
   id: string;
   name: string;
+  barcode: string | null;
   quantity: number;
   unit: string;
   category: string;

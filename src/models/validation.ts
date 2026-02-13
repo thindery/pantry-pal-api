@@ -25,6 +25,10 @@ export const createItemSchema = z.object({
     .min(1, 'Item name is required')
     .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
     .trim(),
+  barcode: z
+    .string()
+    .max(50, 'Barcode must be less than 50 characters')
+    .optional(),
   quantity: z
     .number()
     .min(0, 'Quantity must be non-negative')
@@ -47,6 +51,10 @@ export const updateItemSchema = z.object({
     .min(1, 'Item name cannot be empty')
     .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
     .trim()
+    .optional(),
+  barcode: z
+    .string()
+    .max(50, 'Barcode must be less than 50 characters')
     .optional(),
   quantity: z
     .number()
