@@ -264,7 +264,16 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
     const query = `UPDATE pantry_items SET ${updates.join(', ')} WHERE user_id = ? AND id = ?`;
     const stmt = db.prepare(query);
-    stmt.run(...params);
+    const result = stmt.run(...params);
+    
+    // Debug logging to track persistence issues
+    console.log(`[DB] updateItem: userId=${userId}, id=${id}, changes=${result.changes}`);
+
+    // Verify the update actually worked
+    if (result.changes === 0) {
+      console.warn(`[DB] updateItem: No rows updated for userId=${userId}, id=${id}`);
+      return null;
+    }
 
     return this.getItemById(userId, id);
   }
@@ -293,7 +302,16 @@ export class SQLiteAdapter implements DatabaseAdapter {
       WHERE user_id = ? AND id = ?
     `);
 
-    stmt.run(newQuantity, now, userId, id);
+    const result = stmt.run(newQuantity, now, userId, id);
+
+    // Debug logging to track persistence issues
+    console.log(`[DB] adjustItemQuantity: userId=${userId}, id=${id}, adjustment=${adjustment}, changes=${result.changes}`);
+
+    // Verify the update actually worked
+    if (result.changes === 0) {
+      console.warn(`[DB] adjustItemQuantity: No rows updated for userId=${userId}, id=${id}`);
+      return null;
+    }
 
     return this.getItemById(userId, id);
   }
