@@ -190,4 +190,45 @@ export interface DatabaseAdapter {
    * Execute within a transaction
    */
   transaction<T>(fn: () => T): Promise<T> | T;
+
+  // ==========================================================================
+  // Client Error Operations
+  // ==========================================================================
+
+  /**
+   * Save a client error for logging
+   */
+  saveClientError(error: {
+    userId?: string;
+    errorType: string;
+    errorMessage: string;
+    errorStack?: string;
+    component?: string;
+    url?: string;
+    userAgent?: string;
+  }): Promise<{ id: string }>;
+
+  /**
+   * Get client errors with filtering
+   */
+  getClientErrors(filters: {
+    resolved?: boolean;
+    limit?: number;
+  }): Promise<Array<{
+    id: string;
+    user_id: string | null;
+    error_type: string;
+    error_message: string;
+    error_stack: string | null;
+    component: string | null;
+    url: string | null;
+    user_agent: string | null;
+    resolved: boolean;
+    created_at: string;
+  }>>;
+
+  /**
+   * Mark a client error as resolved
+   */
+  markErrorResolved(id: string): Promise<void>;
 }

@@ -146,6 +146,22 @@ export class SQLiteAdapter implements DatabaseAdapter {
       );
     `);
 
+    // Client Errors table for centralized error logging
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS client_errors (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        error_type TEXT NOT NULL,
+        error_message TEXT NOT NULL,
+        error_stack TEXT,
+        component TEXT,
+        url TEXT,
+        user_agent TEXT,
+        resolved BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Indexes for performance
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
@@ -158,6 +174,8 @@ export class SQLiteAdapter implements DatabaseAdapter {
       CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
       CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
       CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_client_errors_resolved ON client_errors(resolved);
+      CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at);
     `);
 
     console.log('[DB] SQLite schema initialized successfully');
@@ -701,5 +719,90 @@ export class SQLiteAdapter implements DatabaseAdapter {
       now,
       now
     );
+  }
+
+  // ==========================================================================
+  // Client Error Operations
+  // ==========================================================================
+
+  async saveClientError(error: {
+    userId?: string;
+    errorType: string;
+    errorMessage: string;
+    errorStack?: string;
+    component?: string;
+    url?: string;
+    userAgent?: string;
+  }): Promise<{ id: string }> {
+    const db = this.getDatabase();
+    const id = uuidv4();
+
+    const stmt = db.prepare(`
+      INSERT INTO client_errors (id, user_id, error_type, error_message, error_stack, component, url, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      id,
+      error.userId || null,
+      error.errorType,
+      error.errorMessage,
+      error.errorStack || null,
+      error.component || null,
+      error.url || null,
+      error.userAgent || null
+    );
+
+    return { id };
+  }
+
+  async getClientErrors(filters: {
+    resolved?: boolean;
+    limit?: number;
+  }): Promise<Array<{
+    id: string;
+    user_id: string | null;
+    error_type: string;
+    error_message: string;
+    error_stack: string | null;
+    component: string | null;
+    url: string | null;
+    user_agent: string | null;
+    resolved: boolean;
+    created_at: string;
+  }>> {
+    const db = this.getDatabase();
+    const limit = filters.limit || 50;
+
+    let query = 'SELECT * FROM client_errors WHERE 1=1';
+    const params: (string | number | boolean)[] = [];
+
+    if (filters.resolved !== undefined) {
+      query += ' AND resolved = ?';
+      params.push(filters.resolved ? 1 : 0);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = db.prepare(query);
+    return stmt.all(...params) as Array<{
+      id: string;
+      user_id: string | null;
+      error_type: string;
+      error_message: string;
+      error_stack: string | null;
+      component: string | null;
+      url: string | null;
+      user_agent: string | null;
+      resolved: boolean;
+      created_at: string;
+    }>;
+  }
+
+  async markErrorResolved(id: string): Promise<void> {
+    const db = this.getDatabase();
+    const stmt = db.prepare('UPDATE client_errors SET resolved = 1 WHERE id = ?');
+    stmt.run(id);
   }
 }

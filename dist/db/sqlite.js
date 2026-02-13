@@ -102,6 +102,20 @@ class SQLiteAdapter {
       );
     `);
         db.exec(`
+      CREATE TABLE IF NOT EXISTS client_errors (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        error_type TEXT NOT NULL,
+        error_message TEXT NOT NULL,
+        error_stack TEXT,
+        component TEXT,
+        url TEXT,
+        user_agent TEXT,
+        resolved BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+        db.exec(`
       CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
       CREATE INDEX IF NOT EXISTS idx_pantry_items_category ON pantry_items(category);
       CREATE INDEX IF NOT EXISTS idx_pantry_items_name ON pantry_items(name);
@@ -112,6 +126,8 @@ class SQLiteAdapter {
       CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
       CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
       CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_client_errors_resolved ON client_errors(resolved);
+      CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at);
     `);
         console.log('[DB] SQLite schema initialized successfully');
     }
@@ -458,6 +474,35 @@ class SQLiteAdapter {
         updated_at = excluded.updated_at
     `);
         stmt.run(input.barcode, input.name, input.brand || null, input.category, input.imageUrl || null, input.ingredients || null, input.nutrition ? JSON.stringify(input.nutrition) : null, input.source, now, now);
+    }
+    async saveClientError(error) {
+        const db = this.getDatabase();
+        const id = (0, uuid_1.v4)();
+        const stmt = db.prepare(`
+      INSERT INTO client_errors (id, user_id, error_type, error_message, error_stack, component, url, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+        stmt.run(id, error.userId || null, error.errorType, error.errorMessage, error.errorStack || null, error.component || null, error.url || null, error.userAgent || null);
+        return { id };
+    }
+    async getClientErrors(filters) {
+        const db = this.getDatabase();
+        const limit = filters.limit || 50;
+        let query = 'SELECT * FROM client_errors WHERE 1=1';
+        const params = [];
+        if (filters.resolved !== undefined) {
+            query += ' AND resolved = ?';
+            params.push(filters.resolved ? 1 : 0);
+        }
+        query += ' ORDER BY created_at DESC LIMIT ?';
+        params.push(limit);
+        const stmt = db.prepare(query);
+        return stmt.all(...params);
+    }
+    async markErrorResolved(id) {
+        const db = this.getDatabase();
+        const stmt = db.prepare('UPDATE client_errors SET resolved = 1 WHERE id = ?');
+        stmt.run(id);
     }
 }
 exports.SQLiteAdapter = SQLiteAdapter;

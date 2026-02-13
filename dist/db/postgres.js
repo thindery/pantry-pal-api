@@ -113,6 +113,20 @@ class PostgresAdapter {
         );
       `);
             await client.query(`
+        CREATE TABLE IF NOT EXISTS client_errors (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          error_type TEXT NOT NULL,
+          error_message TEXT NOT NULL,
+          error_stack TEXT,
+          component TEXT,
+          url TEXT,
+          user_agent TEXT,
+          resolved BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+            await client.query(`
         CREATE INDEX IF NOT EXISTS idx_pantry_items_user_id ON pantry_items(user_id);
         CREATE INDEX IF NOT EXISTS idx_pantry_items_category ON pantry_items(category);
         CREATE INDEX IF NOT EXISTS idx_pantry_items_name ON pantry_items(name);
@@ -123,6 +137,8 @@ class PostgresAdapter {
         CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
         CREATE INDEX IF NOT EXISTS idx_product_cache_barcode ON product_cache(barcode);
         CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
+        CREATE INDEX IF NOT EXISTS idx_client_errors_resolved ON client_errors(resolved);
+        CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at);
       `);
             console.log('[DB] PostgreSQL schema initialized successfully');
         }
@@ -512,6 +528,41 @@ class PostgresAdapter {
             now,
             now,
         ]);
+    }
+    async saveClientError(error) {
+        const pool = this.getPool();
+        const id = (0, uuid_1.v4)();
+        await pool.query(`INSERT INTO client_errors (id, user_id, error_type, error_message, error_stack, component, url, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [
+            id,
+            error.userId || null,
+            error.errorType,
+            error.errorMessage,
+            error.errorStack || null,
+            error.component || null,
+            error.url || null,
+            error.userAgent || null,
+        ]);
+        return { id };
+    }
+    async getClientErrors(filters) {
+        const pool = this.getPool();
+        const limit = filters.limit || 50;
+        let query = 'SELECT * FROM client_errors WHERE 1=1';
+        const params = [];
+        let paramIndex = 1;
+        if (filters.resolved !== undefined) {
+            query += ` AND resolved = $${paramIndex++}`;
+            params.push(filters.resolved ? 1 : 0);
+        }
+        query += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
+        params.push(limit);
+        const result = await pool.query(query, params);
+        return result.rows;
+    }
+    async markErrorResolved(id) {
+        const pool = this.getPool();
+        await pool.query('UPDATE client_errors SET resolved = 1 WHERE id = $1', [id]);
     }
 }
 exports.PostgresAdapter = PostgresAdapter;

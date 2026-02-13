@@ -41,5 +41,32 @@ export interface DatabaseAdapter {
         lastID?: string | number;
     }>;
     transaction<T>(fn: () => T): Promise<T> | T;
+    saveClientError(error: {
+        userId?: string;
+        errorType: string;
+        errorMessage: string;
+        errorStack?: string;
+        component?: string;
+        url?: string;
+        userAgent?: string;
+    }): Promise<{
+        id: string;
+    }>;
+    getClientErrors(filters: {
+        resolved?: boolean;
+        limit?: number;
+    }): Promise<Array<{
+        id: string;
+        user_id: string | null;
+        error_type: string;
+        error_message: string;
+        error_stack: string | null;
+        component: string | null;
+        url: string | null;
+        user_agent: string | null;
+        resolved: boolean;
+        created_at: string;
+    }>>;
+    markErrorResolved(id: string): Promise<void>;
 }
 //# sourceMappingURL=adapter.d.ts.map

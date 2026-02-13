@@ -33,5 +33,32 @@ export declare class SQLiteAdapter implements DatabaseAdapter {
     transaction<T>(fn: () => T): T;
     getProductByBarcode(barcode: string, maxAgeDays?: number): Promise<ProductInfo | null>;
     saveProduct(input: ProductCacheInput): Promise<void>;
+    saveClientError(error: {
+        userId?: string;
+        errorType: string;
+        errorMessage: string;
+        errorStack?: string;
+        component?: string;
+        url?: string;
+        userAgent?: string;
+    }): Promise<{
+        id: string;
+    }>;
+    getClientErrors(filters: {
+        resolved?: boolean;
+        limit?: number;
+    }): Promise<Array<{
+        id: string;
+        user_id: string | null;
+        error_type: string;
+        error_message: string;
+        error_stack: string | null;
+        component: string | null;
+        url: string | null;
+        user_agent: string | null;
+        resolved: boolean;
+        created_at: string;
+    }>>;
+    markErrorResolved(id: string): Promise<void>;
 }
 //# sourceMappingURL=sqlite.d.ts.map
