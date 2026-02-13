@@ -48,8 +48,15 @@ export async function ensureStripeProducts(): Promise<void> {
   }
 
   try {
-    // Check if Pro monthly price exists
-    if (!PRICE_IDS.pro.month) {
+    // Check if products already exist by querying Stripe
+    const existingProducts = await stripe.products.list({ limit: 10 });
+    const existingNames = new Set(existingProducts.data.map(p => p.name));
+    
+    // Check if Pro monthly price exists (either from env or existing on Stripe)
+    const hasProMonthly = PRICE_IDS.pro.month || existingNames.has(PRODUCT_NAMES.pro);
+    const hasFamilyMonthly = PRICE_IDS.family.month || existingNames.has(PRODUCT_NAMES.family);
+    
+    if (!hasProMonthly) {
       const proProduct = await stripe.products.create({
         name: PRODUCT_NAMES.pro,
         description: 'Unlimited items, AI receipt scanning, voice assistant, multi-device sync',
@@ -78,8 +85,7 @@ export async function ensureStripeProducts(): Promise<void> {
       console.log(`  Add to env: STRIPE_PRO_YEARLY_PRICE_ID=${proYearly.id}`);
     }
 
-    // Check if Family monthly price exists
-    if (!PRICE_IDS.family.month) {
+    if (!hasFamilyMonthly) {
       const familyProduct = await stripe.products.create({
         name: PRODUCT_NAMES.family,
         description: 'Everything in Pro + 5 household members + shared inventory',
