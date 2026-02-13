@@ -50,6 +50,8 @@ const activities_1 = __importDefault(require("./routes/activities"));
 const scan_1 = __importDefault(require("./routes/scan"));
 const subscription_1 = __importDefault(require("./routes/subscription"));
 const webhook_1 = __importDefault(require("./routes/webhook"));
+const barcode_1 = __importDefault(require("./routes/barcode"));
+const errors_1 = __importDefault(require("./routes/errors"));
 const stripe_1 = require("./services/stripe");
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -176,6 +178,8 @@ app.get('/api', (_req, res) => {
 app.use('/api/items', items_1.default);
 app.use('/api/activities', activities_1.default);
 app.use('/api/subscription', subscription_1.default);
+app.use('/api/products/barcode', barcode_1.default);
+app.use('/api/errors', errors_1.default);
 app.use('/api/webhooks', webhook_1.default);
 app.use('/api', scan_1.default);
 app.use((_req, res) => {

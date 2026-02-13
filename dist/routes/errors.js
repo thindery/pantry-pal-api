@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const router = express_1.default.Router();
+router.post('/', async (req, res) => {
+    const { type, message, component, url, userAgent, stack } = req.body;
+    console.error('[CLIENT ERROR]', {
+        type,
+        message,
+        component,
+        url,
+        userAgent,
+        stack: stack?.slice(0, 200),
+        timestamp: new Date().toISOString(),
+    });
+    res.json({ success: true });
+});
+exports.default = router;
+//# sourceMappingURL=errors.js.map

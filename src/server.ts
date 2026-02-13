@@ -23,6 +23,7 @@ import scanRouter from './routes/scan';
 import subscriptionRouter from './routes/subscription';
 import webhookRouter from './routes/webhook';
 import barcodeRouter from './routes/barcode';
+import errorRouter from './routes/errors';
 
 // Import services
 import { ensureStripeProducts } from './services/stripe';
@@ -201,6 +202,7 @@ app.use('/api/items', itemsRouter);
 app.use('/api/activities', activitiesRouter);
 app.use('/api/subscription', subscriptionRouter);
 app.use('/api/products/barcode', barcodeRouter);
+app.use('/api/errors', errorRouter);
 // Webhook route needs raw body for Stripe signature verification
 app.use('/api/webhooks', webhookRouter);
 // Scan routes are mounted at root for cleaner URLs per spec
