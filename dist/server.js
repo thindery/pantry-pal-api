@@ -37,13 +37,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.app = void 0;
+require("dotenv/config");
 const https_1 = __importDefault(require("https"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = require("./db");
 const items_1 = __importDefault(require("./routes/items"));
 const activities_1 = __importDefault(require("./routes/activities"));
@@ -51,8 +51,6 @@ const scan_1 = __importDefault(require("./routes/scan"));
 const subscription_1 = __importDefault(require("./routes/subscription"));
 const webhook_1 = __importDefault(require("./routes/webhook"));
 const stripe_1 = require("./services/stripe");
-const envPath = path_1.default.resolve(process.cwd(), '.env');
-dotenv_1.default.config({ path: envPath });
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isDevelopment = NODE_ENV === 'development';
@@ -64,6 +62,7 @@ const CORS_ORIGINS = process.env.CORS_ORIGINS
             'https://localhost:5173',
             'https://192.168.86.48:5173',
             'https://127.0.0.1:5173',
+            'https://frondescent-terri-boltlike.ngrok-free.dev',
         ]
         : [];
 const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path_1.default.resolve(__dirname, '../.certs/localhost+3.pem');
@@ -98,9 +97,10 @@ app.get('/', (_req, res) => {
         health: '/health',
     });
 });
-app.get('/health', (_req, res) => {
+app.get('/health', async (_req, res) => {
     try {
-        (0, db_1.getDatabase)();
+        const db = (0, db_1.getDatabase)();
+        await db.query('SELECT 1');
         res.json({
             status: 'healthy',
             timestamp: new Date().toISOString(),

@@ -30,12 +30,13 @@ router.use(requireAuth);
 // Helper Functions
 // ============================================================================
 
-function successResponse<T>(data: T): ApiResponse<T> {
+function successResponse<T>(data: T, userId?: string): ApiResponse<T> {
   return {
     success: true,
     data,
     meta: {
       timestamp: new Date().toISOString(),
+      ...(userId && { userId }),
     },
   };
 }
@@ -69,7 +70,7 @@ router.get('/', async (req, res) => {
     
     const items = await getAllItems(userId, category as string | undefined);
 
-    res.json(successResponse(items));
+    res.json(successResponse(items, userId));
   } catch (error) {
     console.error('[GET /items] Error:', error);
     res.status(500).json(
@@ -151,7 +152,7 @@ router.post('/', async (req, res) => {
 
     const newItem = await createItem(userId, validation.data);
 
-    res.status(201).json(successResponse(newItem));
+    res.status(201).json(successResponse(newItem, userId));
   } catch (error) {
     console.error('[POST /items] Error:', error);
     res.status(500).json(

@@ -29,11 +29,11 @@ function errorResponse(code, message, details) {
         },
     };
 }
-router.get('/tier', (req, res) => {
+router.get('/tier', async (req, res) => {
     try {
         const userId = req.userId;
-        const items = (0, db_1.getAllItems)(userId);
-        const tierInfo = (0, subscription_1.getUserTierInfo)(userId, items.length);
+        const items = await (0, db_1.getAllItems)(userId);
+        const tierInfo = await (0, subscription_1.getUserTierInfo)(userId, items.length);
         res.json(successResponse(tierInfo));
     }
     catch (error) {
@@ -41,11 +41,11 @@ router.get('/tier', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to retrieve tier information'));
     }
 });
-router.get('/check-items', (req, res) => {
+router.get('/check-items', async (req, res) => {
     try {
         const userId = req.userId;
-        const items = (0, db_1.getAllItems)(userId);
-        const check = (0, subscription_1.canAddItems)(userId, items.length);
+        const items = await (0, db_1.getAllItems)(userId);
+        const check = await (0, subscription_1.canAddItems)(userId, items.length);
         res.json(successResponse({
             canAdd: check.allowed,
             currentItems: items.length,
@@ -58,10 +58,10 @@ router.get('/check-items', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to check item limits'));
     }
 });
-router.get('/check-receipt', (req, res) => {
+router.get('/check-receipt', async (req, res) => {
     try {
         const userId = req.userId;
-        const check = (0, subscription_1.canScanReceipt)(userId);
+        const check = await (0, subscription_1.canScanReceipt)(userId);
         res.json(successResponse({
             canScan: check.allowed,
             remaining: check.remaining,
@@ -72,10 +72,10 @@ router.get('/check-receipt', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to check receipt scan limits'));
     }
 });
-router.get('/check-voice', (req, res) => {
+router.get('/check-voice', async (req, res) => {
     try {
         const userId = req.userId;
-        const allowed = (0, subscription_1.canUseVoiceAssistant)(userId);
+        const allowed = await (0, subscription_1.canUseVoiceAssistant)(userId);
         res.json(successResponse({
             canUse: allowed,
         }));
@@ -145,11 +145,11 @@ router.post('/portal', async (req, res) => {
         }));
     }
 });
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
     try {
         const userId = req.userId;
-        const items = (0, db_1.getAllItems)(userId);
-        const tierInfo = (0, subscription_1.getUserTierInfo)(userId, items.length);
+        const items = await (0, db_1.getAllItems)(userId);
+        const tierInfo = await (0, subscription_1.getUserTierInfo)(userId, items.length);
         res.json(successResponse({
             tier: tierInfo.tier,
             isPaid: tierInfo.tier !== 'free',

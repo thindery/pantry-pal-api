@@ -81,20 +81,16 @@ function initializeSubscriptionSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_usage_limits_user_month ON usage_limits(user_id, month);
   `);
 }
-function getOrCreateUserSubscription(userId) {
+async function getOrCreateUserSubscription(userId) {
     const db = (0, db_1.getDatabase)();
-    const findStmt = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?');
-    const existing = findStmt.get(userId);
-    if (existing) {
-        return mapUserSubscriptionRow(existing);
+    const existing = await db.query('SELECT * FROM user_subscriptions WHERE user_id = ?', [userId]);
+    if (existing.length > 0) {
+        return mapUserSubscriptionRow(existing[0]);
     }
     const now = new Date().toISOString();
     const id = (0, uuid_1.v4)();
-    const createStmt = db.prepare(`
-    INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
-    VALUES (?, ?, 'free', ?, ?)
-  `);
-    createStmt.run(id, userId, now, now);
+    await db.execute(`INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
+     VALUES (?, ?, 'free', ?, ?)`, [id, userId, now, now]);
     return {
         id,
         userId,
@@ -109,15 +105,14 @@ function getOrCreateUserSubscription(userId) {
         updatedAt: now,
     };
 }
-function getUserSubscription(userId) {
+async function getUserSubscription(userId) {
     const db = (0, db_1.getDatabase)();
-    const stmt = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?');
-    const row = stmt.get(userId);
-    return row ? mapUserSubscriptionRow(row) : null;
+    const result = await db.query('SELECT * FROM user_subscriptions WHERE user_id = ?', [userId]);
+    return result.length > 0 ? mapUserSubscriptionRow(result[0]) : null;
 }
-function updateUserSubscription(userId, updates) {
+async function updateUserSubscription(userId, updates) {
     const db = (0, db_1.getDatabase)();
-    const existing = getUserSubscription(userId);
+    const existing = await getUserSubscription(userId);
     if (!existing)
         return null;
     const now = new Date().toISOString();
@@ -155,45 +150,37 @@ function updateUserSubscription(userId, updates) {
     params.push(now);
     params.push(userId);
     const query = `UPDATE user_subscriptions SET ${updateFields.join(', ')} WHERE user_id = ?`;
-    const stmt = db.prepare(query);
-    stmt.run(...params);
+    await db.execute(query, params);
     return getUserSubscription(userId);
 }
-function downgradeToFree(userId) {
+async function downgradeToFree(userId) {
     const db = (0, db_1.getDatabase)();
     const now = new Date().toISOString();
-    const stmt = db.prepare(`
-    UPDATE user_subscriptions
-    SET tier = 'free',
-        stripe_subscription_id = NULL,
-        stripe_price_id = NULL,
-        subscription_status = 'canceled',
-        subscription_end_date = ?,
-        updated_at = ?
-    WHERE user_id = ?
-  `);
-    stmt.run(now, now, userId);
+    await db.execute(`UPDATE user_subscriptions
+     SET tier = 'free',
+         stripe_subscription_id = NULL,
+         stripe_price_id = NULL,
+         subscription_status = 'canceled',
+         subscription_end_date = ?,
+         updated_at = ?
+     WHERE user_id = ?`, [now, now, userId]);
     return getUserSubscription(userId);
 }
 function getCurrentMonth() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
-function getOrCreateUsageLimits(userId) {
+async function getOrCreateUsageLimits(userId) {
     const db = (0, db_1.getDatabase)();
     const month = getCurrentMonth();
-    const findStmt = db.prepare('SELECT * FROM usage_limits WHERE user_id = ? AND month = ?');
-    const existing = findStmt.get(userId, month);
-    if (existing) {
-        return mapUsageLimitsRow(existing);
+    const existing = await db.query('SELECT * FROM usage_limits WHERE user_id = ? AND month = ?', [userId, month]);
+    if (existing.length > 0) {
+        return mapUsageLimitsRow(existing[0]);
     }
     const now = new Date().toISOString();
     const id = (0, uuid_1.v4)();
-    const createStmt = db.prepare(`
-    INSERT INTO usage_limits (id, user_id, month, receipt_scans, ai_calls, voice_sessions, created_at, updated_at)
-    VALUES (?, ?, ?, 0, 0, 0, ?, ?)
-  `);
-    createStmt.run(id, userId, month, now, now);
+    await db.execute(`INSERT INTO usage_limits (id, user_id, month, receipt_scans, ai_calls, voice_sessions, created_at, updated_at)
+     VALUES (?, ?, ?, 0, 0, 0, ?, ?)`, [id, userId, month, now, now]);
     return {
         id,
         userId,
@@ -205,30 +192,27 @@ function getOrCreateUsageLimits(userId) {
         updatedAt: now,
     };
 }
-function incrementUsage(userId, type) {
+async function incrementUsage(userId, type) {
     const db = (0, db_1.getDatabase)();
     const month = getCurrentMonth();
     const now = new Date().toISOString();
-    getOrCreateUsageLimits(userId);
+    await getOrCreateUsageLimits(userId);
     const columnMap = {
         receiptScans: 'receipt_scans',
         aiCalls: 'ai_calls',
         voiceSessions: 'voice_sessions',
     };
-    const stmt = db.prepare(`
-    UPDATE usage_limits
-    SET ${columnMap[type]} = ${columnMap[type]} + 1,
-        updated_at = ?
-    WHERE user_id = ? AND month = ?
-  `);
-    stmt.run(now, userId, month);
+    await db.execute(`UPDATE usage_limits
+     SET ${columnMap[type]} = ${columnMap[type]} + 1,
+         updated_at = ?
+     WHERE user_id = ? AND month = ?`, [now, userId, month]);
     return getOrCreateUsageLimits(userId);
 }
-function getUsageLimits(userId) {
+async function getUsageLimits(userId) {
     return getOrCreateUsageLimits(userId);
 }
-function canAddItems(userId, currentItemCount) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function canAddItems(userId, currentItemCount) {
+    const subscription = await getOrCreateUserSubscription(userId);
     const limit = subscription_1.TIER_LIMITS[subscription.tier].maxItems;
     if (limit === Infinity) {
         return { allowed: true, remaining: Infinity };
@@ -236,41 +220,41 @@ function canAddItems(userId, currentItemCount) {
     const remaining = limit - currentItemCount;
     return { allowed: remaining > 0, remaining };
 }
-function canScanReceipt(userId) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function canScanReceipt(userId) {
+    const subscription = await getOrCreateUserSubscription(userId);
     const limit = subscription_1.TIER_LIMITS[subscription.tier].receiptScansPerMonth;
     if (limit === Infinity) {
         return { allowed: true, remaining: Infinity };
     }
-    const usage = getOrCreateUsageLimits(userId);
+    const usage = await getOrCreateUsageLimits(userId);
     const remaining = limit - usage.receiptScans;
     return { allowed: remaining > 0, remaining };
 }
-function canUseAI(userId) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function canUseAI(userId) {
+    const subscription = await getOrCreateUserSubscription(userId);
     const limit = subscription_1.TIER_LIMITS[subscription.tier].aiCallsPerMonth;
     if (limit === Infinity) {
         return { allowed: true, remaining: Infinity };
     }
-    const usage = getOrCreateUsageLimits(userId);
+    const usage = await getOrCreateUsageLimits(userId);
     const remaining = limit - usage.aiCalls;
     return { allowed: remaining > 0, remaining };
 }
-function canUseVoiceAssistant(userId) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function canUseVoiceAssistant(userId) {
+    const subscription = await getOrCreateUserSubscription(userId);
     return subscription_1.TIER_LIMITS[subscription.tier].voiceAssistant;
 }
-function hasMultiDevice(userId) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function hasMultiDevice(userId) {
+    const subscription = await getOrCreateUserSubscription(userId);
     return subscription_1.TIER_LIMITS[subscription.tier].multiDevice;
 }
-function hasSharedInventory(userId) {
-    const subscription = getOrCreateUserSubscription(userId);
+async function hasSharedInventory(userId) {
+    const subscription = await getOrCreateUserSubscription(userId);
     return subscription_1.TIER_LIMITS[subscription.tier].sharedInventory;
 }
-function getUserTierInfo(userId, currentItemCount) {
-    const subscription = getOrCreateUserSubscription(userId);
-    const usage = getOrCreateUsageLimits(userId);
+async function getUserTierInfo(userId, currentItemCount) {
+    const subscription = await getOrCreateUserSubscription(userId);
+    const usage = await getOrCreateUsageLimits(userId);
     const limits = subscription_1.TIER_LIMITS[subscription.tier];
     return {
         tier: subscription.tier,
@@ -299,25 +283,21 @@ function getUserTierInfo(userId, currentItemCount) {
             : null,
     };
 }
-function migrateExistingUsersToFreeTier() {
+async function migrateExistingUsersToFreeTier() {
     const db = (0, db_1.getDatabase)();
-    const userStmt = db.prepare('SELECT DISTINCT user_id FROM pantry_items');
-    const users = userStmt.all();
+    const users = await db.query('SELECT DISTINCT user_id FROM pantry_items');
     const now = new Date().toISOString();
     let migrated = 0;
     let skipped = 0;
     for (const { user_id } of users) {
-        const exists = db.prepare('SELECT 1 FROM user_subscriptions WHERE user_id = ?').get(user_id);
-        if (exists) {
+        const exists = await db.query('SELECT 1 FROM user_subscriptions WHERE user_id = ?', [user_id]);
+        if (exists.length > 0) {
             skipped++;
             continue;
         }
         const id = (0, uuid_1.v4)();
-        const createStmt = db.prepare(`
-      INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
-      VALUES (?, ?, 'free', ?, ?)
-    `);
-        createStmt.run(id, user_id, now, now);
+        await db.execute(`INSERT INTO user_subscriptions (id, user_id, tier, created_at, updated_at)
+       VALUES (?, ?, 'free', ?, ?)`, [id, user_id, now, now]);
         migrated++;
     }
     console.log(`[MIGRATION] User subscriptions: ${migrated} migrated, ${skipped} skipped`);

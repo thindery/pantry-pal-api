@@ -29,7 +29,7 @@ function errorResponse(code, message, details) {
         },
     };
 }
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const userId = req.userId;
         const pagination = validation_1.paginationSchema.safeParse(req.query);
@@ -44,8 +44,8 @@ router.get('/', (req, res) => {
         const page = pagination.success ? pagination.data.page : 1;
         const limit = pagination.success ? pagination.data.limit : 20;
         const offset = (page - 1) * limit;
-        const activities = (0, db_1.getActivities)(userId, limit, offset, itemId);
-        const total = (0, db_1.getActivityCount)(userId, itemId);
+        const activities = await (0, db_1.getActivities)(userId, limit, offset, itemId);
+        const total = await (0, db_1.getActivityCount)(userId, itemId);
         res.json(successResponse(activities, {
             page,
             limit,
@@ -58,7 +58,7 @@ router.get('/', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to retrieve activities'));
     }
 });
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const userId = req.userId;
         const validation = validation_1.createActivitySchema.safeParse(req.body);
@@ -69,7 +69,7 @@ router.post('/', (req, res) => {
             return;
         }
         const { itemId, type, amount, source } = validation.data;
-        const activity = (0, db_1.logActivity)(userId, itemId, type, amount, source);
+        const activity = await (0, db_1.logActivity)(userId, itemId, type, amount, source);
         if (!activity) {
             res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${itemId} not found`));
             return;

@@ -70,16 +70,16 @@ router.post('/scan-receipt/import', async (req, res) => {
         const errors = [];
         for (const scanResult of results) {
             try {
-                let item = (0, db_1.getItemByName)(userId, scanResult.name);
+                let item = await (0, db_1.getItemByName)(userId, scanResult.name);
                 if (!item) {
-                    item = (0, db_1.createItem)(userId, {
+                    item = await (0, db_1.createItem)(userId, {
                         name: scanResult.name,
                         quantity: 0,
                         unit: scanResult.unit || 'pieces',
                         category: scanResult.category || 'general',
                     });
                 }
-                const activity = (0, db_1.logActivity)(userId, item.id, 'ADD', scanResult.quantity, 'RECEIPT_SCAN');
+                const activity = await (0, db_1.logActivity)(userId, item.id, 'ADD', scanResult.quantity, 'RECEIPT_SCAN');
                 if (activity) {
                     imported.push({
                         itemId: item.id,
@@ -109,7 +109,7 @@ router.post('/scan-receipt/import', async (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to import receipt items'));
     }
 });
-router.post('/visual-usage', (req, res) => {
+router.post('/visual-usage', async (req, res) => {
     try {
         const userId = req.userId;
         const validation = validation_1.visualUsageSchema.safeParse(req.body);
@@ -121,7 +121,7 @@ router.post('/visual-usage', (req, res) => {
         }
         const { detections, detectionSource } = validation.data;
         const source = detectionSource || 'VISUAL_USAGE';
-        const results = (0, db_1.processVisualUsage)(userId, detections, source);
+        const results = await (0, db_1.processVisualUsage)(userId, detections, source);
         res.json(successResponse({
             processed: results.processed,
             activities: results.activities,

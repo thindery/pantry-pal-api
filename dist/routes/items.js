@@ -28,11 +28,11 @@ function errorResponse(code, message, details) {
         },
     };
 }
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { category } = req.query;
         const userId = req.userId;
-        const items = (0, db_1.getAllItems)(userId, category);
+        const items = await (0, db_1.getAllItems)(userId, category);
         res.json(successResponse(items));
     }
     catch (error) {
@@ -40,10 +40,10 @@ router.get('/', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to retrieve items'));
     }
 });
-router.get('/categories', (req, res) => {
+router.get('/categories', async (req, res) => {
     try {
         const userId = req.userId;
-        const categories = (0, db_1.getCategories)(userId);
+        const categories = await (0, db_1.getCategories)(userId);
         res.json(successResponse(categories));
     }
     catch (error) {
@@ -51,7 +51,7 @@ router.get('/categories', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to retrieve categories'));
     }
 });
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
         const userId = req.userId;
         const validation = validation_1.itemIdSchema.safeParse({ id: req.params.id });
@@ -61,7 +61,7 @@ router.get('/:id', (req, res) => {
             }));
             return;
         }
-        const item = (0, db_1.getItemById)(userId, req.params.id);
+        const item = await (0, db_1.getItemById)(userId, req.params.id);
         if (!item) {
             res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${req.params.id} not found`));
             return;
@@ -73,7 +73,7 @@ router.get('/:id', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to retrieve item'));
     }
 });
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const userId = req.userId;
         const validation = validation_1.createItemSchema.safeParse(req.body);
@@ -83,7 +83,7 @@ router.post('/', (req, res) => {
             }));
             return;
         }
-        const newItem = (0, db_1.createItem)(userId, validation.data);
+        const newItem = await (0, db_1.createItem)(userId, validation.data);
         res.status(201).json(successResponse(newItem));
     }
     catch (error) {
@@ -91,7 +91,7 @@ router.post('/', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to create item'));
     }
 });
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const userId = req.userId;
         const idValidation = validation_1.itemIdSchema.safeParse({ id: req.params.id });
@@ -110,7 +110,7 @@ router.put('/:id', (req, res) => {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'At least one field must be provided for update'));
             return;
         }
-        const updatedItem = (0, db_1.updateItem)(userId, req.params.id, bodyValidation.data);
+        const updatedItem = await (0, db_1.updateItem)(userId, req.params.id, bodyValidation.data);
         if (!updatedItem) {
             res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${req.params.id} not found`));
             return;
@@ -122,7 +122,7 @@ router.put('/:id', (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to update item'));
     }
 });
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const userId = req.userId;
         const validation = validation_1.itemIdSchema.safeParse({ id: req.params.id });
@@ -130,7 +130,7 @@ router.delete('/:id', (req, res) => {
             res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid item ID format'));
             return;
         }
-        const deleted = (0, db_1.deleteItem)(userId, req.params.id);
+        const deleted = await (0, db_1.deleteItem)(userId, req.params.id);
         if (!deleted) {
             res.status(404).json(errorResponse('NOT_FOUND', `Item with ID ${req.params.id} not found`));
             return;

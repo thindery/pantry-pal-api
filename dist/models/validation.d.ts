@@ -6,15 +6,15 @@ export declare const createItemSchema: z.ZodObject<{
     unit: z.ZodString;
     category: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    category: string;
     name: string;
     quantity: number;
     unit: string;
+    category: string;
 }, {
-    category: string;
     name: string;
     quantity: number;
     unit: string;
+    category: string;
 }>;
 export declare const updateItemSchema: z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
@@ -22,15 +22,15 @@ export declare const updateItemSchema: z.ZodObject<{
     unit: z.ZodOptional<z.ZodString>;
     category: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    category?: string | undefined;
     name?: string | undefined;
     quantity?: number | undefined;
     unit?: string | undefined;
+    category?: string | undefined;
 }, {
-    category?: string | undefined;
     name?: string | undefined;
     quantity?: number | undefined;
     unit?: string | undefined;
+    category?: string | undefined;
 }>;
 export declare const itemIdSchema: z.ZodObject<{
     id: z.ZodString;
@@ -45,13 +45,13 @@ export declare const createActivitySchema: z.ZodObject<{
     amount: z.ZodNumber;
     source: z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodEnum<["MANUAL", "RECEIPT_SCAN", "VISUAL_USAGE"]>>>, ActivitySource, "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined>;
 }, "strip", z.ZodTypeAny, {
-    type: ActivityType;
     itemId: string;
+    type: ActivityType;
     amount: number;
     source: ActivitySource;
 }, {
-    type: "ADD" | "REMOVE" | "ADJUST";
     itemId: string;
+    type: "ADD" | "REMOVE" | "ADJUST";
     amount: number;
     source?: "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined;
 }>;
@@ -63,13 +63,13 @@ export declare const scanResultSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     name: string;
     quantity: number;
-    category?: string | undefined;
     unit?: string | undefined;
+    category?: string | undefined;
 }, {
     name: string;
     quantity: number;
-    category?: string | undefined;
     unit?: string | undefined;
+    category?: string | undefined;
 }>;
 export declare const scanReceiptSchema: z.ZodObject<{
     scanData: z.ZodUnion<[z.ZodString, z.ZodArray<z.ZodObject<{
@@ -80,29 +80,29 @@ export declare const scanReceiptSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         name: string;
         quantity: number;
-        category?: string | undefined;
         unit?: string | undefined;
+        category?: string | undefined;
     }, {
         name: string;
         quantity: number;
-        category?: string | undefined;
         unit?: string | undefined;
+        category?: string | undefined;
     }>, "many">]>;
     minConfidence: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     scanData: string | {
         name: string;
         quantity: number;
-        category?: string | undefined;
         unit?: string | undefined;
+        category?: string | undefined;
     }[];
     minConfidence?: number | undefined;
 }, {
     scanData: string | {
         name: string;
         quantity: number;
-        category?: string | undefined;
         unit?: string | undefined;
+        category?: string | undefined;
     }[];
     minConfidence?: number | undefined;
 }>;
