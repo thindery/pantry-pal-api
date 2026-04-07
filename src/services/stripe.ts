@@ -8,6 +8,7 @@ import {
   updateUserSubscription,
   downgradeToFree,
 } from './subscription';
+import { recordTransaction } from '../db/admin';
 
 // Initialize Stripe client
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -344,10 +345,43 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
   const subscriptionId = (invoice as any).subscription;
   if (!subscriptionId) return;
 
-  // Find user by customer ID
-  // We need to query the database to find the user with this stripe_customer_id
-  // For now, we'll just log it
-  console.log(`[STRIPE] Invoice paid for subscription ${subscriptionId}`);
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const userId = subscription.metadata?.userId;
+
+  if (!userId) {
+    console.error('[STRIPE] No userId found for paid invoice');
+    return;
+  }
+
+  // Get tier and billing interval from subscription
+  const tier = subscription.metadata?.tier as 'pro' | 'family' | undefined;
+  const priceId = subscription.items.data[0]?.price.id;
+
+  // Determine billing interval from the price
+  let billingInterval: 'month' | 'year' | undefined;
+  if (priceId) {
+    const price = await stripe.prices.retrieve(priceId);
+    billingInterval = price.recurring?.interval as 'month' | 'year' | undefined;
+  }
+
+  // Record the successful transaction
+  try {
+    await recordTransaction({
+      userId,
+      stripeCustomerId: invoice.customer as string | undefined,
+      stripeSubscriptionId: subscriptionId,
+      stripeInvoiceId: invoice.id,
+      amountCents: invoice.amount_paid || 0,
+      currency: invoice.currency || 'usd',
+      status: 'succeeded',
+      tier,
+      billingInterval,
+      stripeEventId: invoice.id,
+    });
+    console.log(`[STRIPE] Invoice paid recorded for user ${userId}: ${invoice.amount_paid} cents`);
+  } catch (err) {
+    console.error('[STRIPE] Failed to record transaction:', err);
+  }
 }
 
 /**
@@ -364,6 +398,43 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void
   if (!userId) {
     console.error('[STRIPE] No userId in subscription metadata');
     return;
+  }
+
+  // Get tier and billing interval from subscription
+  const tier = subscription.metadata?.tier as 'pro' | 'family' | undefined;
+  const priceId = subscription.items.data[0]?.price.id;
+
+  // Determine billing interval from the price
+  let billingInterval: 'month' | 'year' | undefined;
+  if (priceId) {
+    const price = await stripe.prices.retrieve(priceId);
+    billingInterval = price.recurring?.interval as 'month' | 'year' | undefined;
+  }
+
+  // Get failure details from the invoice
+  const lastPaymentError = (invoice as any).last_payment_error;
+  const failureCode = lastPaymentError?.code || lastPaymentError?.decline_code || 'unknown';
+  const failureMessage = lastPaymentError?.message || 'Payment failed';
+
+  // Record the failed transaction
+  try {
+    await recordTransaction({
+      userId,
+      stripeCustomerId: invoice.customer as string | undefined,
+      stripeSubscriptionId: subscriptionId,
+      stripeInvoiceId: invoice.id,
+      amountCents: invoice.amount_due || 0,
+      currency: invoice.currency || 'usd',
+      status: 'failed',
+      tier,
+      billingInterval,
+      failureCode,
+      failureMessage,
+      stripeEventId: invoice.id,
+    });
+    console.log(`[STRIPE] Failed payment recorded for user ${userId}: ${failureMessage}`);
+  } catch (err) {
+    console.error('[STRIPE] Failed to record failed transaction:', err);
   }
 
   updateUserSubscription(userId, {

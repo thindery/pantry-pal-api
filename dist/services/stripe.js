@@ -11,6 +11,7 @@ exports.handleWebhookEvent = handleWebhookEvent;
 exports.getPriceIds = getPriceIds;
 const stripe_1 = __importDefault(require("stripe"));
 const subscription_1 = require("./subscription");
+const admin_1 = require("../db/admin");
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
     apiVersion: '2026-01-28.clover',
     typescript: true,
@@ -36,7 +37,11 @@ async function ensureStripeProducts() {
         return;
     }
     try {
-        if (!PRICE_IDS.pro.month) {
+        const existingProducts = await stripe.products.list({ limit: 10 });
+        const existingNames = new Set(existingProducts.data.map(p => p.name));
+        const hasProMonthly = PRICE_IDS.pro.month || existingNames.has(PRODUCT_NAMES.pro);
+        const hasFamilyMonthly = PRICE_IDS.family.month || existingNames.has(PRODUCT_NAMES.family);
+        if (!hasProMonthly) {
             const proProduct = await stripe.products.create({
                 name: PRODUCT_NAMES.pro,
                 description: 'Unlimited items, AI receipt scanning, voice assistant, multi-device sync',
@@ -61,7 +66,7 @@ async function ensureStripeProducts() {
             console.log(`  Add to env: STRIPE_PRO_MONTHLY_PRICE_ID=${proMonthly.id}`);
             console.log(`  Add to env: STRIPE_PRO_YEARLY_PRICE_ID=${proYearly.id}`);
         }
-        if (!PRICE_IDS.family.month) {
+        if (!hasFamilyMonthly) {
             const familyProduct = await stripe.products.create({
                 name: PRODUCT_NAMES.family,
                 description: 'Everything in Pro + 5 household members + shared inventory',
@@ -231,7 +236,37 @@ async function handleInvoicePaid(invoice) {
     const subscriptionId = invoice.subscription;
     if (!subscriptionId)
         return;
-    console.log(`[STRIPE] Invoice paid for subscription ${subscriptionId}`);
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const userId = subscription.metadata?.userId;
+    if (!userId) {
+        console.error('[STRIPE] No userId found for paid invoice');
+        return;
+    }
+    const tier = subscription.metadata?.tier;
+    const priceId = subscription.items.data[0]?.price.id;
+    let billingInterval;
+    if (priceId) {
+        const price = await stripe.prices.retrieve(priceId);
+        billingInterval = price.recurring?.interval;
+    }
+    try {
+        await (0, admin_1.recordTransaction)({
+            userId,
+            stripeCustomerId: invoice.customer,
+            stripeSubscriptionId: subscriptionId,
+            stripeInvoiceId: invoice.id,
+            amountCents: invoice.amount_paid || 0,
+            currency: invoice.currency || 'usd',
+            status: 'succeeded',
+            tier,
+            billingInterval,
+            stripeEventId: invoice.id,
+        });
+        console.log(`[STRIPE] Invoice paid recorded for user ${userId}: ${invoice.amount_paid} cents`);
+    }
+    catch (err) {
+        console.error('[STRIPE] Failed to record transaction:', err);
+    }
 }
 async function handleInvoicePaymentFailed(invoice) {
     const subscriptionId = invoice.subscription;
@@ -242,6 +277,36 @@ async function handleInvoicePaymentFailed(invoice) {
     if (!userId) {
         console.error('[STRIPE] No userId in subscription metadata');
         return;
+    }
+    const tier = subscription.metadata?.tier;
+    const priceId = subscription.items.data[0]?.price.id;
+    let billingInterval;
+    if (priceId) {
+        const price = await stripe.prices.retrieve(priceId);
+        billingInterval = price.recurring?.interval;
+    }
+    const lastPaymentError = invoice.last_payment_error;
+    const failureCode = lastPaymentError?.code || lastPaymentError?.decline_code || 'unknown';
+    const failureMessage = lastPaymentError?.message || 'Payment failed';
+    try {
+        await (0, admin_1.recordTransaction)({
+            userId,
+            stripeCustomerId: invoice.customer,
+            stripeSubscriptionId: subscriptionId,
+            stripeInvoiceId: invoice.id,
+            amountCents: invoice.amount_due || 0,
+            currency: invoice.currency || 'usd',
+            status: 'failed',
+            tier,
+            billingInterval,
+            failureCode,
+            failureMessage,
+            stripeEventId: invoice.id,
+        });
+        console.log(`[STRIPE] Failed payment recorded for user ${userId}: ${failureMessage}`);
+    }
+    catch (err) {
+        console.error('[STRIPE] Failed to record failed transaction:', err);
     }
     (0, subscription_1.updateUserSubscription)(userId, {
         subscriptionStatus: 'past_due',

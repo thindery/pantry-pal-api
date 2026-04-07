@@ -16,7 +16,9 @@
     "db:down": "docker-compose down",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "stripe:cleanup": "ts-node scripts/cleanup-stripe-products.ts",
+    "db:migrate-sqlite": "ts-node scripts/migrate-sqlite-to-postgres.ts"
   },
   "keywords": [
     "pantry",
@@ -36,7 +38,9 @@
     "express": "^4.18.3",
     "helmet": "^7.1.0",
     "pg": "^8.11.3",
+    "sharp": "^0.34.5",
     "stripe": "^20.3.0",
+    "tesseract.js": "^7.0.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },
@@ -48,6 +52,7 @@
     "@types/node": "^20.11.24",
     "@types/pg": "^8.11.0",
     "@types/supertest": "^6.0.3",
+    "@types/tesseract.js": "^0.0.2",
     "@types/uuid": "^9.0.8",
     "jest": "^30.2.0",
     "supertest": "^7.2.2",

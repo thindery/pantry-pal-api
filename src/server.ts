@@ -25,6 +25,8 @@ import webhookRouter from './routes/webhook';
 import barcodeRouter from './routes/barcode';
 import errorRouter from './routes/errors';
 import clientErrorsRouter from './routes/clientErrors';
+import receiptsRouter from './routes/receipts';
+import adminRouter from './routes/admin';
 
 // Import services
 import { ensureStripeProducts } from './services/stripe';
@@ -169,6 +171,11 @@ app.get('/api', (_req: Request, res: Response) => {
         'POST /api/subscription/portal': 'Create customer portal session',
         'GET /api/subscription/status': 'Get subscription status',
       },
+      admin: {
+        'GET /api/admin/dashboard?period=7d': 'Get dashboard metrics (7d, 30d, 90d)',
+        'GET /api/admin/transactions?limit=10': 'Get paginated transaction history',
+        'GET /api/admin/alerts': 'Get failed payment alerts',
+      },
     },
     models: {
       PantryItem: {
@@ -205,10 +212,13 @@ app.use('/api/subscription', subscriptionRouter);
 app.use('/api/products/barcode', barcodeRouter);
 app.use('/api/errors', errorRouter);
 app.use('/api/client-errors', clientErrorsRouter);
+app.use('/api/receipts', receiptsRouter);
 // Webhook route needs raw body for Stripe signature verification
 app.use('/api/webhooks', webhookRouter);
 // Scan routes are mounted at root for cleaner URLs per spec
 app.use('/api', scanRouter);
+// Admin dashboard routes
+app.use('/api/admin', adminRouter);
 
 // ============================================================================
 // Error Handling

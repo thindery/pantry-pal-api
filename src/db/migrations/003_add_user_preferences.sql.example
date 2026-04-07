@@ -1,0 +1,18 @@
+-- Example: 003_add_user_preferences.sql
+-- SAFE: Adding optional column with default
+-- Created: Follow this pattern for all new columns
+
+-- For PostgreSQL (production):
+-- Add column with default - backwards compatible, old code works
+ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
+
+-- Add index concurrently to avoid table locks
+-- CREATE INDEX CONCURRENTLY idx_user_prefs 
+-- ON user_subscriptions(user_id) 
+-- WHERE preferences != '{}';
+
+-- For SQLite (local dev):
+-- SQLite has limited ALTER TABLE support
+-- For new columns, use: ALTER TABLE ... ADD COLUMN ...
+-- Note: SQLite doesn't support DEFAULT for JSON types well, use TEXT
+-- ALTER TABLE user_subscriptions ADD COLUMN preferences TEXT DEFAULT '{}';

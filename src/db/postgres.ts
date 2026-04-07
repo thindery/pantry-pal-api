@@ -23,12 +23,17 @@ import {
 // Configuration
 // ============================================================================
 
+// DATABASE_URL takes precedence (set by Railway, Render, etc.)
+const DATABASE_URL = process.env.DATABASE_URL;
+
+// Individual config vars for local development
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
 const DB_NAME = process.env.DB_NAME || 'pantry_pal';
 const DB_USER = process.env.DB_USER || 'postgres';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
-const DB_SSL = process.env.DB_SSL === 'true';
+// Default to SSL in production (DATABASE_URL typically includes SSL)
+const DB_SSL = process.env.DB_SSL === 'true' || (!!DATABASE_URL && process.env.NODE_ENV === 'production');
 
 // ============================================================================
 // Row Mappers
@@ -68,17 +73,30 @@ export class PostgresAdapter implements DatabaseAdapter {
   private pool: Pool | null = null;
 
   initialize(): void {
-    this.pool = new Pool({
-      host: DB_HOST,
-      port: DB_PORT,
-      database: DB_NAME,
-      user: DB_USER,
-      password: DB_PASSWORD,
-      ssl: DB_SSL ? { rejectUnauthorized: false } : false,
-      max: 20, // Maximum pool size
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    // Use DATABASE_URL if available (Railway, Render, etc.)
+    if (DATABASE_URL) {
+      this.pool = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        max: 20, // Maximum pool size
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+      console.log('[DB] Using DATABASE_URL for PostgreSQL connection');
+    } else {
+      this.pool = new Pool({
+        host: DB_HOST,
+        port: DB_PORT,
+        database: DB_NAME,
+        user: DB_USER,
+        password: DB_PASSWORD,
+        ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+        max: 20, // Maximum pool size
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+      console.log('[DB] Using individual DB config for PostgreSQL connection');
+    }
 
     // Handle pool errors
     this.pool.on('error', (err) => {

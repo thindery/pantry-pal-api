@@ -3,12 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostgresAdapter = void 0;
 const pg_1 = require("pg");
 const uuid_1 = require("uuid");
+const DATABASE_URL = process.env.DATABASE_URL;
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
 const DB_NAME = process.env.DB_NAME || 'pantry_pal';
 const DB_USER = process.env.DB_USER || 'postgres';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
-const DB_SSL = process.env.DB_SSL === 'true';
+const DB_SSL = process.env.DB_SSL === 'true' || (!!DATABASE_URL && process.env.NODE_ENV === 'production');
 function mapPantryItemRow(row) {
     return {
         id: row.id,
@@ -36,17 +37,30 @@ function mapActivityRow(row) {
 class PostgresAdapter {
     pool = null;
     initialize() {
-        this.pool = new pg_1.Pool({
-            host: DB_HOST,
-            port: DB_PORT,
-            database: DB_NAME,
-            user: DB_USER,
-            password: DB_PASSWORD,
-            ssl: DB_SSL ? { rejectUnauthorized: false } : false,
-            max: 20,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000,
-        });
+        if (DATABASE_URL) {
+            this.pool = new pg_1.Pool({
+                connectionString: DATABASE_URL,
+                ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+                max: 20,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 2000,
+            });
+            console.log('[DB] Using DATABASE_URL for PostgreSQL connection');
+        }
+        else {
+            this.pool = new pg_1.Pool({
+                host: DB_HOST,
+                port: DB_PORT,
+                database: DB_NAME,
+                user: DB_USER,
+                password: DB_PASSWORD,
+                ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+                max: 20,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 2000,
+            });
+            console.log('[DB] Using individual DB config for PostgreSQL connection');
+        }
         this.pool.on('error', (err) => {
             console.error('Unexpected error on PostgreSQL client', err);
         });

@@ -53,6 +53,8 @@ const webhook_1 = __importDefault(require("./routes/webhook"));
 const barcode_1 = __importDefault(require("./routes/barcode"));
 const errors_1 = __importDefault(require("./routes/errors"));
 const clientErrors_1 = __importDefault(require("./routes/clientErrors"));
+const receipts_1 = __importDefault(require("./routes/receipts"));
+const admin_1 = __importDefault(require("./routes/admin"));
 const stripe_1 = require("./services/stripe");
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -154,6 +156,11 @@ app.get('/api', (_req, res) => {
                 'POST /api/subscription/portal': 'Create customer portal session',
                 'GET /api/subscription/status': 'Get subscription status',
             },
+            admin: {
+                'GET /api/admin/dashboard?period=7d': 'Get dashboard metrics (7d, 30d, 90d)',
+                'GET /api/admin/transactions?limit=10': 'Get paginated transaction history',
+                'GET /api/admin/alerts': 'Get failed payment alerts',
+            },
         },
         models: {
             PantryItem: {
@@ -182,8 +189,10 @@ app.use('/api/subscription', subscription_1.default);
 app.use('/api/products/barcode', barcode_1.default);
 app.use('/api/errors', errors_1.default);
 app.use('/api/client-errors', clientErrors_1.default);
+app.use('/api/receipts', receipts_1.default);
 app.use('/api/webhooks', webhook_1.default);
 app.use('/api', scan_1.default);
+app.use('/api/admin', admin_1.default);
 app.use((_req, res) => {
     res.status(404).json({
         success: false,
