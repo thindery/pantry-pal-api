@@ -23,7 +23,44 @@
 - ❌ Barcode scanning (camera access is frontend)
 - ❌ Image preprocessing
 
-### Development Tools
+## Workflow & Development Standards (CRITICAL)
+
+### Branch Naming
+- Feature branches: `feature/{TICKET}-{brief-description}`
+- Example: `feature/REMY-275-railway-deployment-docs`
+
+### Commit Messages
+Format: `{TICKET}: {description}`
+
+Example:
+```
+REMY-275: Document Railway deployment process
+
+Added comprehensive guide for deploying PantryPal API to Railway
+with local development support via SQLite fallback.
+
+Changes:
+- Added DEPLOY.md with step-by-step instructions
+- Updated railway.toml with health checks
+- Documented environment variable setup
+```
+
+### Ticket Completion Checklist
+1. **Branch**: Create feature branch from main: `git checkout -b feature/REMY-XXX-desc`
+2. **Develop**: Implement changes
+3. **Test**: Run `npm test` locally
+4. **Commit**: `git commit -m "REMY-XXX: Description"`
+5. **Push**: `git push -u origin feature/REMY-XXX-desc`
+6. **PR**: Create pull request with ticket reference
+7. **Merge**: Squash merge to main via `gh pr merge` or GitHub UI
+8. **Close**: Update ticket status (if using remy-tracker for tracking)
+
+**Important:** Code must be committed AND merged before closing ticket.
+
+### Note on Ralph Workflow
+This repo does **not** use Ralph workflow directly — that's specific to the `remy-tracker` repo. Tickets here are tracked via remy-tracker, but development follows standard Git workflow above.
+
+## Development Tools
 - **Testing**: Jest + Supertest
 - **Build**: TypeScript compiler (tsc)
 - **Dev Server**: ts-node-dev (auto-reload)
