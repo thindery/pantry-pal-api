@@ -58,12 +58,12 @@ Changes:
 **Important:** Code must be committed AND merged before closing ticket.
 
 ### Ralph Workflow (via remy-tracker)
-All tickets are tracked in the remy-tracker repo and follow the Ralph workflow:
+All tickets are tracked in the remy-tracker repo and follow the Ralph workflow. The `remy` command works from any directory:
 
 ```bash
-# Check ticket status in remy-tracker
-cd ~/projects/remy-tracker
+# Check ticket status
 remy ralph status REMY-XXX
+remy show REMY-XXX
 
 # Advance phases as work completes
 remy ralph next REMY-XXX
@@ -72,7 +72,7 @@ remy move REMY-XXX --to="In QA"
 remy move REMY-XXX --to="Closed/Done"
 ```
 
-**Workflow**: Code in this repo → tracked in remy-tracker → Ralph phases → Closed.
+**Workflow**: Code in this repo → `remy` commands from any directory → Ralph phases → Closed.
 
 ### Ticket Completion Checklist
 
