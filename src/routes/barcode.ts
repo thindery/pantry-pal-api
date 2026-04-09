@@ -72,6 +72,16 @@ async function lookupOpenFoodFacts(barcode: string): Promise<BarcodeLookupRespon
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      // Handle rate limiting specifically
+      if (response.status === 429) {
+        console.warn(`[Barcode] Rate limited (429) for ${barcode}`);
+        return {
+          success: false,
+          cached: false,
+          rateLimited: true,
+          error: 'Rate limit exceeded. Please try again later.',
+        };
+      }
       throw new Error(`HTTP error ${response.status}`);
     }
 
