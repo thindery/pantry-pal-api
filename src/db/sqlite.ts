@@ -1216,8 +1216,6 @@ export class SQLiteAdapter implements DatabaseAdapter {
     userId: string,
     sessionId: string
   ): Promise<{ items: PantryItem[]; activities: Activity[] }> {
-    const db = this.getDatabase();
-
     // Get the session with items
     const session = await this.getSessionById(userId, sessionId);
     if (!session) {

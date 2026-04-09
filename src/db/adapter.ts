@@ -18,6 +18,7 @@ import {
   ShoppingSessionWithItems,
   SessionItem,
   SessionSummary,
+  SessionReceipt,
 } from '../models/shoppingSession';
 
 /**

@@ -1157,6 +1157,36 @@ export class PostgresAdapter implements DatabaseAdapter {
     return this.getSessionById(userId, sessionId);
   }
 
+  async updateSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptUrl: string
+  ): Promise<ShoppingSession | null> {
+    const pool = this.getPool();
+    const now = new Date().toISOString();
+
+    // Verify session belongs to user and is completed
+    const sessionResult = await pool.query(
+      'SELECT * FROM shopping_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
+      [sessionId, userId, 'completed']
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return null;
+    }
+
+    // Update session receipt_url
+    await pool.query(
+      `UPDATE shopping_sessions 
+       SET receipt_url = $1,
+           updated_at = $2
+       WHERE id = $3 AND user_id = $4`,
+      [receiptUrl, now, sessionId, userId]
+    );
+
+    return this.getSessionById(userId, sessionId);
+  }
+
   async cancelSession(userId: string, sessionId: string): Promise<boolean> {
     const pool = this.getPool();
     const now = new Date().toISOString();

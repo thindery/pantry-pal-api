@@ -286,9 +286,17 @@ export declare const captureReceiptSchema: z.ZodObject<{
     mimeType: string;
     notes?: string | undefined;
 }>;
+export declare const updateSessionReceiptSchema: z.ZodObject<{
+    receiptUrl: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    receiptUrl: string;
+}, {
+    receiptUrl: string;
+}>;
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
 export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 export type CaptureReceiptInput = z.infer<typeof captureReceiptSchema>;
+export type UpdateSessionReceiptInput = z.infer<typeof updateSessionReceiptSchema>;
 //# sourceMappingURL=validation.d.ts.map

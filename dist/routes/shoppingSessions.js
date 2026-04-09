@@ -219,5 +219,33 @@ router.post('/:id/add-to-inventory', async (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to add session items to inventory'));
     }
 });
+router.post('/:id/receipt', async (req, res) => {
+    try {
+        const userId = req.userId;
+        const sessionId = req.params.id;
+        const idValidation = validation_1.sessionIdSchema.safeParse({ id: sessionId });
+        if (!idValidation.success) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid session ID format'));
+            return;
+        }
+        const bodyValidation = validation_1.updateSessionReceiptSchema.safeParse(req.body);
+        if (!bodyValidation.success) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid request body', {
+                errors: bodyValidation.error.errors,
+            }));
+            return;
+        }
+        const session = await (0, operations_1.updateSessionReceipt)(userId, sessionId, bodyValidation.data.receiptUrl);
+        if (!session) {
+            res.status(404).json(errorResponse('NOT_FOUND', 'Shopping session not found or not completed'));
+            return;
+        }
+        res.json(successResponse(session));
+    }
+    catch (error) {
+        console.error('[POST /shopping-sessions/:id/receipt] Error:', error);
+        res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to update session receipt'));
+    }
+});
 exports.default = router;
 //# sourceMappingURL=shoppingSessions.js.map

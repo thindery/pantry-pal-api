@@ -69,6 +69,7 @@ export declare class PostgresAdapter implements DatabaseAdapter {
     addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
     removeSessionItem(_userId: string, sessionId: string, itemId: string): Promise<boolean>;
     completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+    updateSessionReceipt(userId: string, sessionId: string, receiptUrl: string): Promise<ShoppingSession | null>;
     cancelSession(userId: string, sessionId: string): Promise<boolean>;
     getSessionSummary(userId: string): Promise<SessionSummary>;
     addSessionToInventory(userId: string, sessionId: string): Promise<{

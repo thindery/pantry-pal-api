@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.captureReceiptSchema = exports.updateSessionSchema = exports.sessionItemIdSchema = exports.sessionIdSchema = exports.completeSessionSchema = exports.addSessionItemSchema = exports.createSessionSchema = exports.paginationSchema = exports.visualUsageSchema = exports.usageResultSchema = exports.scanReceiptSchema = exports.scanResultSchema = exports.createActivitySchema = exports.itemIdSchema = exports.updateItemSchema = exports.createItemSchema = void 0;
+exports.updateSessionReceiptSchema = exports.captureReceiptSchema = exports.updateSessionSchema = exports.sessionItemIdSchema = exports.sessionIdSchema = exports.completeSessionSchema = exports.addSessionItemSchema = exports.createSessionSchema = exports.paginationSchema = exports.visualUsageSchema = exports.usageResultSchema = exports.scanReceiptSchema = exports.scanResultSchema = exports.createActivitySchema = exports.itemIdSchema = exports.updateItemSchema = exports.createItemSchema = void 0;
 const zod_1 = require("zod");
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_ITEM_NAME_LENGTH = 100;
@@ -262,5 +262,11 @@ exports.captureReceiptSchema = zod_1.z.object({
         .string()
         .max(500, 'Notes must be less than 500 characters')
         .optional(),
+});
+exports.updateSessionReceiptSchema = zod_1.z.object({
+    receiptUrl: zod_1.z
+        .string()
+        .url('Must be a valid URL')
+        .max(500, 'Receipt URL must be less than 500 characters'),
 });
 //# sourceMappingURL=validation.js.map

@@ -15,6 +15,7 @@ import {
   completeSession,
   cancelSession,
   addSessionToInventory,
+  updateSessionReceipt,
 } from '../db/operations';
 import { requireAuth } from '../middleware/auth';
 import { ApiResponse } from '../models/types';
@@ -25,6 +26,7 @@ import {
   sessionIdSchema,
   sessionItemIdSchema,
   paginationSchema,
+  updateSessionReceiptSchema,
 } from '../models/validation';
 
 const router = Router();
@@ -379,6 +381,54 @@ router.post('/:id/add-to-inventory', async (req, res) => {
 
     res.status(500).json(
       errorResponse('INTERNAL_ERROR', 'Failed to add session items to inventory')
+    );
+  }
+});
+
+/**
+ * POST /api/shopping-sessions/:id/receipt
+ * Update receipt URL for a completed shopping session
+ * Only allows updating sessions with status='completed'
+ */
+router.post('/:id/receipt', async (req, res) => {
+  try {
+    const userId = req.userId!;
+    const sessionId = req.params.id;
+
+    // Validate session ID
+    const idValidation = sessionIdSchema.safeParse({ id: sessionId });
+    if (!idValidation.success) {
+      res.status(400).json(
+        errorResponse('VALIDATION_ERROR', 'Invalid session ID format')
+      );
+      return;
+    }
+
+    // Validate request body
+    const bodyValidation = updateSessionReceiptSchema.safeParse(req.body);
+    if (!bodyValidation.success) {
+      res.status(400).json(
+        errorResponse('VALIDATION_ERROR', 'Invalid request body', {
+          errors: bodyValidation.error.errors,
+        })
+      );
+      return;
+    }
+
+    const session = await updateSessionReceipt(userId, sessionId, bodyValidation.data.receiptUrl);
+
+    if (!session) {
+      res.status(404).json(
+        errorResponse('NOT_FOUND', 'Shopping session not found or not completed')
+      );
+      return;
+    }
+
+    res.json(successResponse(session));
+  } catch (error) {
+    console.error('[POST /shopping-sessions/:id/receipt] Error:', error);
+    res.status(500).json(
+      errorResponse('INTERNAL_ERROR', 'Failed to update session receipt')
     );
   }
 });

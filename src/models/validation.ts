@@ -326,6 +326,13 @@ export const captureReceiptSchema = z.object({
     .optional(),
 });
 
+export const updateSessionReceiptSchema = z.object({
+  receiptUrl: z
+    .string()
+    .url('Must be a valid URL')
+    .max(500, 'Receipt URL must be less than 500 characters'),
+});
+
 // ============================================================================
 // Type Exports (inferred from schemas)
 // ============================================================================
@@ -335,3 +342,4 @@ export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
 export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 export type CaptureReceiptInput = z.infer<typeof captureReceiptSchema>;
+export type UpdateSessionReceiptInput = z.infer<typeof updateSessionReceiptSchema>;

@@ -1,5 +1,5 @@
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
-import { ShoppingSession, ShoppingSessionWithItems, SessionItem, SessionSummary } from '../models/shoppingSession';
+import { ShoppingSession, ShoppingSessionWithItems, SessionItem, SessionSummary, SessionReceipt } from '../models/shoppingSession';
 export interface CreateItemInput {
     name: string;
     quantity: number;

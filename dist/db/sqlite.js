@@ -752,7 +752,6 @@ class SQLiteAdapter {
         };
     }
     async addSessionToInventory(userId, sessionId) {
-        const db = this.getDatabase();
         const session = await this.getSessionById(userId, sessionId);
         if (!session) {
             throw new Error('Session not found');

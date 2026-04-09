@@ -737,6 +737,19 @@ class PostgresAdapter {
        WHERE id = $6 AND user_id = $7`, [now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId]);
         return this.getSessionById(userId, sessionId);
     }
+    async updateSessionReceipt(userId, sessionId, receiptUrl) {
+        const pool = this.getPool();
+        const now = new Date().toISOString();
+        const sessionResult = await pool.query('SELECT * FROM shopping_sessions WHERE id = $1 AND user_id = $2 AND status = $3', [sessionId, userId, 'completed']);
+        if (sessionResult.rows.length === 0) {
+            return null;
+        }
+        await pool.query(`UPDATE shopping_sessions 
+       SET receipt_url = $1,
+           updated_at = $2
+       WHERE id = $3 AND user_id = $4`, [receiptUrl, now, sessionId, userId]);
+        return this.getSessionById(userId, sessionId);
+    }
     async cancelSession(userId, sessionId) {
         const pool = this.getPool();
         const now = new Date().toISOString();
