@@ -13,6 +13,15 @@ exports.getActivityCount = getActivityCount;
 exports.logActivity = logActivity;
 exports.processReceiptScan = processReceiptScan;
 exports.processVisualUsage = processVisualUsage;
+exports.createSession = createSession;
+exports.getSessionById = getSessionById;
+exports.getUserSessions = getUserSessions;
+exports.getSessionCount = getSessionCount;
+exports.addSessionItem = addSessionItem;
+exports.removeSessionItem = removeSessionItem;
+exports.completeSession = completeSession;
+exports.cancelSession = cancelSession;
+exports.getSessionSummary = getSessionSummary;
 const index_1 = require("./index");
 function getAllItems(userId, category) {
     return (0, index_1.getDatabase)().getAllItems(userId, category);
@@ -52,5 +61,32 @@ function processReceiptScan(rawData) {
 }
 function processVisualUsage(userId, detections, source = 'VISUAL_USAGE') {
     return (0, index_1.getDatabase)().processVisualUsage(userId, detections, source);
+}
+function createSession(userId, input) {
+    return (0, index_1.getDatabase)().createSession(userId, input);
+}
+function getSessionById(userId, sessionId) {
+    return (0, index_1.getDatabase)().getSessionById(userId, sessionId);
+}
+function getUserSessions(userId, limit, offset, status) {
+    return (0, index_1.getDatabase)().getUserSessions(userId, limit, offset, status);
+}
+function getSessionCount(userId, status) {
+    return (0, index_1.getDatabase)().getSessionCount(userId, status);
+}
+function addSessionItem(userId, sessionId, input) {
+    return (0, index_1.getDatabase)().addSessionItem(userId, sessionId, input);
+}
+function removeSessionItem(userId, sessionId, itemId) {
+    return (0, index_1.getDatabase)().removeSessionItem(userId, sessionId, itemId);
+}
+function completeSession(userId, sessionId, input) {
+    return (0, index_1.getDatabase)().completeSession(userId, sessionId, input);
+}
+function cancelSession(userId, sessionId) {
+    return (0, index_1.getDatabase)().cancelSession(userId, sessionId);
+}
+function getSessionSummary(userId) {
+    return (0, index_1.getDatabase)().getSessionSummary(userId);
 }
 //# sourceMappingURL=operations.js.map

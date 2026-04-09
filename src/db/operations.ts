@@ -4,7 +4,7 @@
  */
 
 import { getDatabase } from './index';
-import { CreateItemInput, UpdateItemInput } from './adapter';
+import { CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import {
   PantryItem,
   Activity,
@@ -13,6 +13,12 @@ import {
   ScanResult,
   UsageResult,
 } from '../models/types';
+import {
+  ShoppingSession,
+  ShoppingSessionWithItems,
+  SessionItem,
+  SessionSummary,
+} from '../models/shoppingSession';
 
 // ==========================================================================
 // Pantry Item Operations
@@ -95,4 +101,57 @@ export function processVisualUsage(
   source: string = 'VISUAL_USAGE'
 ): Promise<{ processed: UsageResult[]; activities: Activity[]; errors: string[] }> {
   return getDatabase().processVisualUsage(userId, detections, source);
+}
+
+// ==========================================================================
+// Shopping Session Operations
+// ==========================================================================
+
+export function createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession> {
+  return getDatabase().createSession(userId, input);
+}
+
+export function getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null> {
+  return getDatabase().getSessionById(userId, sessionId);
+}
+
+export function getUserSessions(
+  userId: string,
+  limit?: number,
+  offset?: number,
+  status?: string
+): Promise<ShoppingSession[]> {
+  return getDatabase().getUserSessions(userId, limit, offset, status);
+}
+
+export function getSessionCount(userId: string, status?: string): Promise<number> {
+  return getDatabase().getSessionCount(userId, status);
+}
+
+export function addSessionItem(
+  userId: string,
+  sessionId: string,
+  input: AddSessionItemInput
+): Promise<SessionItem> {
+  return getDatabase().addSessionItem(userId, sessionId, input);
+}
+
+export function removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean> {
+  return getDatabase().removeSessionItem(userId, sessionId, itemId);
+}
+
+export function completeSession(
+  userId: string,
+  sessionId: string,
+  input: CompleteSessionInput
+): Promise<ShoppingSession | null> {
+  return getDatabase().completeSession(userId, sessionId, input);
+}
+
+export function cancelSession(userId: string, sessionId: string): Promise<boolean> {
+  return getDatabase().cancelSession(userId, sessionId);
+}
+
+export function getSessionSummary(userId: string): Promise<SessionSummary> {
+  return getDatabase().getSessionSummary(userId);
 }

@@ -164,4 +164,63 @@ export declare const paginationSchema: z.ZodObject<{
     limit?: string | undefined;
 }>;
 export type PaginationParams = z.infer<typeof paginationSchema>;
+export declare const createSessionSchema: z.ZodObject<{
+    storeName: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    storeName?: string | undefined;
+    notes?: string | undefined;
+}, {
+    storeName?: string | undefined;
+    notes?: string | undefined;
+}>;
+export declare const addSessionItemSchema: z.ZodObject<{
+    barcode: z.ZodOptional<z.ZodString>;
+    name: z.ZodString;
+    quantity: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    unit: z.ZodOptional<z.ZodString>;
+    price: z.ZodOptional<z.ZodNumber>;
+    category: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    quantity: number;
+    barcode?: string | undefined;
+    unit?: string | undefined;
+    category?: string | undefined;
+    price?: number | undefined;
+}, {
+    name: string;
+    barcode?: string | undefined;
+    quantity?: number | undefined;
+    unit?: string | undefined;
+    category?: string | undefined;
+    price?: number | undefined;
+}>;
+export declare const completeSessionSchema: z.ZodObject<{
+    receiptUrl: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    notes?: string | undefined;
+    receiptUrl?: string | undefined;
+}, {
+    notes?: string | undefined;
+    receiptUrl?: string | undefined;
+}>;
+export declare const sessionIdSchema: z.ZodObject<{
+    id: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
+export declare const sessionItemIdSchema: z.ZodObject<{
+    itemId: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    itemId: string;
+}, {
+    itemId: string;
+}>;
+export type CreateSessionInput = z.infer<typeof createSessionSchema>;
+export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
+export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;
 //# sourceMappingURL=validation.d.ts.map

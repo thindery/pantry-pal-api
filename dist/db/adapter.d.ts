@@ -1,4 +1,5 @@
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
+import { ShoppingSession, ShoppingSessionWithItems, SessionItem, SessionSummary } from '../models/shoppingSession';
 export interface CreateItemInput {
     name: string;
     quantity: number;
@@ -12,6 +13,22 @@ export interface UpdateItemInput {
     quantity?: number;
     unit?: string;
     category?: string;
+}
+export interface CreateSessionInput {
+    storeName?: string;
+    notes?: string;
+}
+export interface AddSessionItemInput {
+    barcode?: string;
+    name: string;
+    quantity: number;
+    unit?: string;
+    price?: number;
+    category?: string;
+}
+export interface CompleteSessionInput {
+    receiptUrl?: string;
+    notes?: string;
 }
 export interface DatabaseAdapter {
     initialize(): void;
@@ -68,5 +85,14 @@ export interface DatabaseAdapter {
         created_at: string;
     }>>;
     markErrorResolved(id: string): Promise<void>;
+    createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession>;
+    getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null>;
+    getUserSessions(userId: string, limit?: number, offset?: number, status?: string): Promise<ShoppingSession[]>;
+    getSessionCount(userId: string, status?: string): Promise<number>;
+    addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
+    removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean>;
+    completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+    cancelSession(userId: string, sessionId: string): Promise<boolean>;
+    getSessionSummary(userId: string): Promise<SessionSummary>;
 }
 //# sourceMappingURL=adapter.d.ts.map

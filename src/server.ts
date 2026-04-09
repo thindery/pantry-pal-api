@@ -27,6 +27,7 @@ import errorRouter from './routes/errors';
 import clientErrorsRouter from './routes/clientErrors';
 import receiptsRouter from './routes/receipts';
 import adminRouter from './routes/admin';
+import shoppingSessionsRouter from './routes/shoppingSessions';
 
 // Import services
 import { ensureStripeProducts } from './services/stripe';
@@ -213,6 +214,7 @@ app.use('/api/products/barcode', barcodeRouter);
 app.use('/api/errors', errorRouter);
 app.use('/api/client-errors', clientErrorsRouter);
 app.use('/api/receipts', receiptsRouter);
+app.use('/api/shopping-sessions', shoppingSessionsRouter);
 // Webhook route needs raw body for Stripe signature verification
 app.use('/api/webhooks', webhookRouter);
 // Scan routes are mounted at root for cleaner URLs per spec

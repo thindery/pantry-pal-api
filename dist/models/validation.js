@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paginationSchema = exports.visualUsageSchema = exports.usageResultSchema = exports.scanReceiptSchema = exports.scanResultSchema = exports.createActivitySchema = exports.itemIdSchema = exports.updateItemSchema = exports.createItemSchema = void 0;
+exports.sessionItemIdSchema = exports.sessionIdSchema = exports.completeSessionSchema = exports.addSessionItemSchema = exports.createSessionSchema = exports.paginationSchema = exports.visualUsageSchema = exports.usageResultSchema = exports.scanReceiptSchema = exports.scanResultSchema = exports.createActivitySchema = exports.itemIdSchema = exports.updateItemSchema = exports.createItemSchema = void 0;
 const zod_1 = require("zod");
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_ITEM_NAME_LENGTH = 100;
@@ -141,5 +141,66 @@ exports.paginationSchema = zod_1.z.object({
         .optional()
         .transform((val) => (val ? parseInt(val, 10) : 20))
         .pipe(zod_1.z.number().min(1).max(100)),
+});
+exports.createSessionSchema = zod_1.z.object({
+    storeName: zod_1.z
+        .string()
+        .max(100, 'Store name must be less than 100 characters')
+        .optional(),
+    notes: zod_1.z
+        .string()
+        .max(500, 'Notes must be less than 500 characters')
+        .optional(),
+});
+exports.addSessionItemSchema = zod_1.z.object({
+    barcode: zod_1.z
+        .string()
+        .max(50, 'Barcode must be less than 50 characters')
+        .optional(),
+    name: zod_1.z
+        .string()
+        .min(1, 'Item name is required')
+        .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
+        .trim(),
+    quantity: zod_1.z
+        .number()
+        .min(0.001, 'Quantity must be greater than 0')
+        .max(999999, 'Quantity exceeds maximum allowed value')
+        .optional()
+        .default(1),
+    unit: zod_1.z
+        .string()
+        .max(MAX_UNIT_LENGTH, `Unit must be less than ${MAX_UNIT_LENGTH} characters`)
+        .optional(),
+    price: zod_1.z
+        .number()
+        .min(0, 'Price must be non-negative')
+        .max(999999.99, 'Price exceeds maximum allowed value')
+        .optional(),
+    category: zod_1.z
+        .string()
+        .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
+        .optional(),
+});
+exports.completeSessionSchema = zod_1.z.object({
+    receiptUrl: zod_1.z
+        .string()
+        .url('Must be a valid URL')
+        .max(500, 'Receipt URL must be less than 500 characters')
+        .optional(),
+    notes: zod_1.z
+        .string()
+        .max(500, 'Notes must be less than 500 characters')
+        .optional(),
+});
+exports.sessionIdSchema = zod_1.z.object({
+    id: zod_1.z
+        .string()
+        .regex(UUID_REGEX, 'Invalid UUID format'),
+});
+exports.sessionItemIdSchema = zod_1.z.object({
+    itemId: zod_1.z
+        .string()
+        .regex(UUID_REGEX, 'Invalid UUID format'),
 });
 //# sourceMappingURL=validation.js.map

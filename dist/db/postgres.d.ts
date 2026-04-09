@@ -1,5 +1,6 @@
-import { DatabaseAdapter, CreateItemInput, UpdateItemInput } from './adapter';
+import { DatabaseAdapter, CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
+import { ShoppingSession, SessionItem, ShoppingSessionWithItems, SessionSummary } from '../models/shoppingSession';
 export declare class PostgresAdapter implements DatabaseAdapter {
     private pool;
     initialize(): void;
@@ -61,5 +62,14 @@ export declare class PostgresAdapter implements DatabaseAdapter {
         created_at: string;
     }>>;
     markErrorResolved(id: string): Promise<void>;
+    createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession>;
+    getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null>;
+    getUserSessions(userId: string, limit?: number, offset?: number, status?: string): Promise<ShoppingSession[]>;
+    getSessionCount(userId: string, status?: string): Promise<number>;
+    addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
+    removeSessionItem(_userId: string, sessionId: string, itemId: string): Promise<boolean>;
+    completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+    cancelSession(userId: string, sessionId: string): Promise<boolean>;
+    getSessionSummary(userId: string): Promise<SessionSummary>;
 }
 //# sourceMappingURL=postgres.d.ts.map

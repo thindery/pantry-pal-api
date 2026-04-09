@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { runMigrations } from './migrate';
 import { initializeSubscriptionSchema } from '../services/subscription';
-import { DatabaseAdapter, CreateItemInput, UpdateItemInput } from './adapter';
+import { DatabaseAdapter, CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import {
   PantryItem,
   PantryItemRow,
@@ -20,6 +20,14 @@ import {
   ProductInfo,
   ProductCacheInput,
 } from '../models/types';
+import {
+  ShoppingSession,
+  ShoppingSessionRow,
+  SessionItem,
+  SessionItemRow,
+  ShoppingSessionWithItems,
+  SessionSummary,
+} from '../models/shoppingSession';
 
 // ============================================================================
 // Configuration
@@ -55,6 +63,38 @@ function mapActivityRow(row: ActivityRow): Activity {
     amount: row.amount,
     timestamp: row.timestamp,
     source: row.source,
+  };
+}
+
+function mapShoppingSessionRow(row: ShoppingSessionRow): ShoppingSession {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    storeName: row.store_name ?? undefined,
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    status: row.status,
+    totalAmount: row.total_amount,
+    itemCount: row.item_count,
+    receiptUrl: row.receipt_url ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapSessionItemRow(row: SessionItemRow): SessionItem {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    barcode: row.barcode ?? undefined,
+    name: row.name,
+    quantity: row.quantity,
+    unit: row.unit ?? undefined,
+    price: row.price ?? undefined,
+    category: row.category ?? undefined,
+    addedAt: row.added_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -804,5 +844,303 @@ export class SQLiteAdapter implements DatabaseAdapter {
     const db = this.getDatabase();
     const stmt = db.prepare('UPDATE client_errors SET resolved = 1 WHERE id = ?');
     stmt.run(id);
+  }
+
+  // ==========================================================================
+  // Shopping Session Operations
+  // ==========================================================================
+
+  async createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession> {
+    const db = this.getDatabase();
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare(`
+      INSERT INTO shopping_sessions (
+        id, user_id, store_name, started_at, status, total_amount, item_count, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'active', 0, 0, ?, ?, ?)
+    `);
+
+    stmt.run(
+      id,
+      userId,
+      input.storeName || null,
+      now,
+      input.notes || null,
+      now,
+      now
+    );
+
+    return {
+      id,
+      userId,
+      storeName: input.storeName,
+      startedAt: now,
+      status: 'active',
+      totalAmount: 0,
+      itemCount: 0,
+      notes: input.notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null> {
+    const db = this.getDatabase();
+
+    // Get session
+    const sessionStmt = db.prepare(
+      'SELECT * FROM shopping_sessions WHERE user_id = ? AND id = ?'
+    );
+    const sessionRow = sessionStmt.get(userId, sessionId) as ShoppingSessionRow | undefined;
+
+    if (!sessionRow) {
+      return null;
+    }
+
+    // Get items
+    const itemsStmt = db.prepare(
+      'SELECT * FROM session_items WHERE session_id = ? ORDER BY added_at DESC'
+    );
+    const itemRows = itemsStmt.all(sessionId) as SessionItemRow[];
+
+    return {
+      ...mapShoppingSessionRow(sessionRow),
+      items: itemRows.map(mapSessionItemRow),
+    };
+  }
+
+  async getUserSessions(
+    userId: string,
+    limit: number = 20,
+    offset: number = 0,
+    status?: string
+  ): Promise<ShoppingSession[]> {
+    const db = this.getDatabase();
+
+    let query = 'SELECT * FROM shopping_sessions WHERE user_id = ?';
+    const params: (string | number)[] = [userId];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY started_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const stmt = db.prepare(query);
+    const rows = stmt.all(...params) as ShoppingSessionRow[];
+
+    return rows.map(mapShoppingSessionRow);
+  }
+
+  async getSessionCount(userId: string, status?: string): Promise<number> {
+    const db = this.getDatabase();
+
+    let query = 'SELECT COUNT(*) as count FROM shopping_sessions WHERE user_id = ?';
+    const params: (string)[] = [userId];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    const stmt = db.prepare(query);
+    const result = stmt.get(...params) as { count: number } | undefined;
+
+    return result?.count || 0;
+  }
+
+  async addSessionItem(
+    userId: string,
+    sessionId: string,
+    input: AddSessionItemInput
+  ): Promise<SessionItem> {
+    const db = this.getDatabase();
+
+    // Verify session belongs to user and is active
+    const sessionStmt = db.prepare(
+      'SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ? AND status = ?'
+    );
+    const sessionRow = sessionStmt.get(sessionId, userId, 'active') as { id: string } | undefined;
+
+    if (!sessionRow) {
+      throw new Error('Session not found or not active');
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    // Insert item
+    const insertStmt = db.prepare(`
+      INSERT INTO session_items (
+        id, session_id, barcode, name, quantity, unit, price, category, added_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertStmt.run(
+      id,
+      sessionId,
+      input.barcode || null,
+      input.name,
+      input.quantity,
+      input.unit || null,
+      input.price || null,
+      input.category || null,
+      now,
+      now
+    );
+
+    // Update session totals
+    const itemTotal = (input.price || 0) * input.quantity;
+    const updateStmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET total_amount = total_amount + ?, 
+          item_count = item_count + 1,
+          updated_at = ?
+      WHERE id = ?
+    `);
+    updateStmt.run(itemTotal, now, sessionId);
+
+    return {
+      id,
+      sessionId,
+      barcode: input.barcode,
+      name: input.name,
+      quantity: input.quantity,
+      unit: input.unit,
+      price: input.price,
+      category: input.category,
+      addedAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async removeSessionItem(_userId: string, sessionId: string, itemId: string): Promise<boolean> {
+    const db = this.getDatabase();
+
+    // Get item details before deletion (for total adjustment)
+    const itemStmt = db.prepare(
+      'SELECT quantity, price FROM session_items WHERE id = ? AND session_id = ?'
+    );
+    const itemRow = itemStmt.get(itemId, sessionId) as { quantity: number; price: number | null } | undefined;
+
+    if (!itemRow) {
+      return false;
+    }
+
+    // Delete item
+    const deleteStmt = db.prepare('DELETE FROM session_items WHERE id = ? AND session_id = ?');
+    const result = deleteStmt.run(itemId, sessionId);
+
+    if (result.changes === 0) {
+      return false;
+    }
+
+    // Update session totals
+    const itemTotal = (itemRow.price || 0) * itemRow.quantity;
+    const now = new Date().toISOString();
+    const updateStmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET total_amount = MAX(0, total_amount - ?), 
+          item_count = MAX(0, item_count - 1),
+          updated_at = ?
+      WHERE id = ?
+    `);
+    updateStmt.run(itemTotal, now, sessionId);
+
+    return true;
+  }
+
+  async completeSession(
+    userId: string,
+    sessionId: string,
+    input: CompleteSessionInput
+  ): Promise<ShoppingSession | null> {
+    const db = this.getDatabase();
+    const now = new Date().toISOString();
+
+    // Verify session belongs to user and is active
+    const sessionStmt = db.prepare(
+      'SELECT * FROM shopping_sessions WHERE id = ? AND user_id = ? AND status = ?'
+    );
+    const sessionRow = sessionStmt.get(sessionId, userId, 'active') as ShoppingSessionRow | undefined;
+
+    if (!sessionRow) {
+      return null;
+    }
+
+    // Calculate final totals
+    const itemsStmt = db.prepare(
+      'SELECT SUM(price * quantity) as total FROM session_items WHERE session_id = ?'
+    );
+    const totalsResult = itemsStmt.get(sessionId) as { total: number | null } | undefined;
+    const finalTotal = totalsResult?.total || sessionRow.total_amount;
+
+    // Update session
+    const updateStmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET status = 'completed',
+          completed_at = ?,
+          total_amount = ?,
+          receipt_url = COALESCE(?, receipt_url),
+          notes = COALESCE(?, notes),
+          updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `);
+
+    updateStmt.run(
+      now,
+      finalTotal,
+      input.receiptUrl || null,
+      input.notes || null,
+      now,
+      sessionId,
+      userId
+    );
+
+    return this.getSessionById(userId, sessionId);
+  }
+
+  async cancelSession(userId: string, sessionId: string): Promise<boolean> {
+    const db = this.getDatabase();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET status = 'cancelled',
+          completed_at = ?,
+          updated_at = ?
+      WHERE id = ? AND user_id = ? AND status = 'active'
+    `);
+
+    const result = stmt.run(now, now, sessionId, userId);
+    return result.changes > 0;
+  }
+
+  async getSessionSummary(userId: string): Promise<SessionSummary> {
+    const db = this.getDatabase();
+
+    const stmt = db.prepare(`
+      SELECT 
+        COUNT(*) as total_sessions,
+        SUM(total_amount) as total_spent,
+        AVG(total_amount) as avg_session_value
+      FROM shopping_sessions 
+      WHERE user_id = ? AND status = 'completed'
+    `);
+
+    const result = stmt.get(userId) as {
+      total_sessions: number;
+      total_spent: number;
+      avg_session_value: number;
+    } | undefined;
+
+    return {
+      totalSessions: result?.total_sessions || 0,
+      totalSpent: result?.total_spent || 0,
+      averageSessionValue: result?.avg_session_value || 0,
+    };
   }
 }
