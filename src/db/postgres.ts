@@ -71,6 +71,7 @@ function mapActivityRow(row: ActivityRow): Activity {
     amount: row.amount,
     timestamp: row.timestamp,
     source: row.source,
+    metadata: row.metadata ?? undefined,
   };
 }
 
@@ -193,10 +194,11 @@ export class PostgresAdapter implements DatabaseAdapter {
           user_id TEXT NOT NULL,
           item_id TEXT NOT NULL REFERENCES pantry_items(id) ON DELETE CASCADE,
           item_name TEXT NOT NULL,
-          type TEXT NOT NULL CHECK(type IN ('ADD', 'REMOVE', 'ADJUST')),
+          type TEXT NOT NULL CHECK(type IN ('ADD', 'REMOVE', 'ADJUST', 'SHOPPING_SESSION')),
           amount REAL NOT NULL,
           timestamp TEXT NOT NULL,
-          source TEXT NOT NULL DEFAULT 'MANUAL' CHECK(source IN ('MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE')),
+          source TEXT NOT NULL DEFAULT 'MANUAL' CHECK(source IN ('MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE', 'SHOPPING_SESSION')),
+          metadata TEXT,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
@@ -1152,6 +1154,19 @@ export class PostgresAdapter implements DatabaseAdapter {
            updated_at = $5
        WHERE id = $6 AND user_id = $7`,
       [now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId]
+    );
+
+    // Log shopping session activity
+    const activityId = uuidv4();
+    const metadata = JSON.stringify({
+      sessionId: sessionId,
+      itemCount: sessionRow.item_count,
+      storeName: sessionRow.store_name
+    });
+    await pool.query(
+      `INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source, metadata)
+       VALUES ($1, $2, $3, $4, 'SHOPPING_SESSION', $5, $6, 'SHOPPING_SESSION', $7)`,
+      [activityId, userId, sessionId, `Shopping Session (${sessionRow.store_name || 'Unknown Store'})`, finalTotal, now, metadata]
     );
 
     return this.getSessionById(userId, sessionId);

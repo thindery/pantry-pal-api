@@ -106,6 +106,11 @@ export interface DatabaseAdapter {
   getItemByName(userId: string, name: string): Promise<PantryItem | null>;
 
   /**
+   * Get a pantry item by barcode for a specific user
+   */
+  getItemByBarcode(userId: string, barcode: string): Promise<PantryItem | null>;
+
+  /**
    * Create a new pantry item for a user
    */
   createItem(userId: string, input: CreateItemInput): Promise<PantryItem>;
@@ -395,4 +400,3 @@ export interface DatabaseAdapter {
     receiptId: string
   ): Promise<boolean>;
 }
-

@@ -64,6 +64,7 @@ function mapActivityRow(row: ActivityRow): Activity {
     amount: row.amount,
     timestamp: row.timestamp,
     source: row.source,
+    metadata: row.metadata ?? undefined,
   };
 }
 

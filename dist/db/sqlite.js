@@ -32,6 +32,7 @@ function mapActivityRow(row) {
         amount: row.amount,
         timestamp: row.timestamp,
         source: row.source,
+        metadata: row.metadata ?? undefined,
     };
 }
 function mapShoppingSessionRow(row) {
@@ -113,6 +114,7 @@ class SQLiteAdapter {
         amount REAL NOT NULL,
         timestamp TEXT NOT NULL,
         source TEXT NOT NULL DEFAULT 'MANUAL' CHECK(source IN ('MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE', 'SHOPPING_SESSION')),
+        metadata TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -703,11 +705,16 @@ class SQLiteAdapter {
     `);
         updateStmt.run(now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId);
         const activityId = (0, uuid_1.v4)();
+        const metadata = JSON.stringify({
+            sessionId: sessionId,
+            itemCount: sessionRow.item_count,
+            storeName: sessionRow.store_name
+        });
         const activityStmt = db.prepare(`
-      INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source)
-      VALUES (?, ?, ?, ?, 'SHOPPING_SESSION', ?, ?, 'SHOPPING_SESSION')
+      INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source, metadata)
+      VALUES (?, ?, ?, ?, 'SHOPPING_SESSION', ?, ?, 'SHOPPING_SESSION', ?)
     `);
-        activityStmt.run(activityId, userId, sessionId, `Shopping Session (${sessionRow.store_name || 'Unknown Store'})`, finalTotal, now);
+        activityStmt.run(activityId, userId, sessionId, `Shopping Session (${sessionRow.store_name || 'Unknown Store'})`, finalTotal, now, metadata);
         return this.getSessionById(userId, sessionId);
     }
     async updateSessionReceipt(userId, sessionId, receiptUrl) {
