@@ -1143,12 +1143,11 @@ export class SQLiteAdapter implements DatabaseAdapter {
     });
     const activityStmt = db.prepare(`
       INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source, metadata)
-      VALUES (?, ?, ?, ?, 'SHOPPING_SESSION', ?, ?, 'SHOPPING_SESSION', ?)
+      VALUES (?, ?, NULL, ?, 'SHOPPING_SESSION', ?, ?, 'SHOPPING_SESSION', ?)
     `);
     activityStmt.run(
       activityId,
       userId,
-      sessionId,
       `Shopping Session (${sessionRow.store_name || 'Unknown Store'})`,
       finalTotal,
       now,
