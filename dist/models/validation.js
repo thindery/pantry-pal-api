@@ -72,14 +72,14 @@ exports.createActivitySchema = zod_1.z.object({
         .string()
         .regex(UUID_REGEX, 'Invalid item ID format'),
     type: zod_1.z
-        .enum(['ADD', 'REMOVE', 'ADJUST'])
+        .enum(['ADD', 'REMOVE', 'ADJUST', 'SHOPPING_SESSION'])
         .refine((val) => validActivityTypes.includes(val)),
     amount: zod_1.z
         .number()
         .min(0.001, 'Amount must be greater than 0')
         .max(999999, 'Amount exceeds maximum allowed value'),
     source: zod_1.z
-        .enum(['MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE'])
+        .enum(['MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE', 'SHOPPING_SESSION'])
         .optional()
         .default('MANUAL')
         .refine((val) => validActivitySources.includes(val)),

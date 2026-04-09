@@ -7,9 +7,9 @@
 // Activity Types
 // ============================================================================
 
-export type ActivityType = 'ADD' | 'REMOVE' | 'ADJUST';
+export type ActivityType = 'ADD' | 'REMOVE' | 'ADJUST' | 'SHOPPING_SESSION';
 
-export type ActivitySource = 'MANUAL' | 'RECEIPT_SCAN' | 'VISUAL_USAGE';
+export type ActivitySource = 'MANUAL' | 'RECEIPT_SCAN' | 'VISUAL_USAGE' | 'SHOPPING_SESSION';
 
 // ============================================================================
 // Pantry Item Model
@@ -77,6 +77,8 @@ export interface Activity {
   source: ActivitySource;
   /** User ID who performed this activity */
   userId: string;
+  /** Optional metadata for additional context (JSON string) */
+  metadata?: string;
 }
 
 /**
@@ -91,6 +93,7 @@ export interface ActivityRow {
   timestamp: string;
   source: ActivitySource;
   user_id: string;
+  metadata?: string;
 }
 
 // ============================================================================

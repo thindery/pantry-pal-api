@@ -109,10 +109,10 @@ class SQLiteAdapter {
         user_id TEXT NOT NULL,
         item_id TEXT NOT NULL REFERENCES pantry_items(id) ON DELETE CASCADE,
         item_name TEXT NOT NULL,
-        type TEXT NOT NULL CHECK(type IN ('ADD', 'REMOVE', 'ADJUST')),
+        type TEXT NOT NULL CHECK(type IN ('ADD', 'REMOVE', 'ADJUST', 'SHOPPING_SESSION')),
         amount REAL NOT NULL,
         timestamp TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK(source IN ('MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE')),
+        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK(source IN ('MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE', 'SHOPPING_SESSION')),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -702,6 +702,12 @@ class SQLiteAdapter {
       WHERE id = ? AND user_id = ?
     `);
         updateStmt.run(now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId);
+        const activityId = (0, uuid_1.v4)();
+        const activityStmt = db.prepare(`
+      INSERT INTO activities (id, user_id, item_id, item_name, type, amount, timestamp, source)
+      VALUES (?, ?, ?, ?, 'SHOPPING_SESSION', ?, ?, 'SHOPPING_SESSION')
+    `);
+        activityStmt.run(activityId, userId, sessionId, `Shopping Session (${sessionRow.store_name || 'Unknown Store'})`, finalTotal, now);
         return this.getSessionById(userId, sessionId);
     }
     async updateSessionReceipt(userId, sessionId, receiptUrl) {

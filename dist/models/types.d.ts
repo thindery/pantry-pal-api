@@ -1,5 +1,5 @@
-export type ActivityType = 'ADD' | 'REMOVE' | 'ADJUST';
-export type ActivitySource = 'MANUAL' | 'RECEIPT_SCAN' | 'VISUAL_USAGE';
+export type ActivityType = 'ADD' | 'REMOVE' | 'ADJUST' | 'SHOPPING_SESSION';
+export type ActivitySource = 'MANUAL' | 'RECEIPT_SCAN' | 'VISUAL_USAGE' | 'SHOPPING_SESSION';
 export interface PantryItem {
     id: string;
     name: string;
@@ -29,6 +29,7 @@ export interface Activity {
     timestamp: string;
     source: ActivitySource;
     userId: string;
+    metadata?: string;
 }
 export interface ActivityRow {
     id: string;
@@ -39,6 +40,7 @@ export interface ActivityRow {
     timestamp: string;
     source: ActivitySource;
     user_id: string;
+    metadata?: string;
 }
 export interface ScanResult {
     name: string;

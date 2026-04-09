@@ -47,9 +47,9 @@ export declare const itemIdSchema: z.ZodObject<{
 }>;
 export declare const createActivitySchema: z.ZodObject<{
     itemId: z.ZodString;
-    type: z.ZodEffects<z.ZodEnum<["ADD", "REMOVE", "ADJUST"]>, ActivityType, "ADD" | "REMOVE" | "ADJUST">;
+    type: z.ZodEffects<z.ZodEnum<["ADD", "REMOVE", "ADJUST", "SHOPPING_SESSION"]>, ActivityType, "ADD" | "REMOVE" | "ADJUST" | "SHOPPING_SESSION">;
     amount: z.ZodNumber;
-    source: z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodEnum<["MANUAL", "RECEIPT_SCAN", "VISUAL_USAGE"]>>>, ActivitySource, "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined>;
+    source: z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodEnum<["MANUAL", "RECEIPT_SCAN", "VISUAL_USAGE", "SHOPPING_SESSION"]>>>, ActivitySource, "SHOPPING_SESSION" | "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined>;
 }, "strip", z.ZodTypeAny, {
     source: ActivitySource;
     itemId: string;
@@ -57,9 +57,9 @@ export declare const createActivitySchema: z.ZodObject<{
     amount: number;
 }, {
     itemId: string;
-    type: "ADD" | "REMOVE" | "ADJUST";
+    type: "ADD" | "REMOVE" | "ADJUST" | "SHOPPING_SESSION";
     amount: number;
-    source?: "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined;
+    source?: "SHOPPING_SESSION" | "MANUAL" | "RECEIPT_SCAN" | "VISUAL_USAGE" | undefined;
 }>;
 export declare const scanResultSchema: z.ZodObject<{
     name: z.ZodString;

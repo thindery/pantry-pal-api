@@ -93,14 +93,14 @@ export const createActivitySchema = z.object({
     .string()
     .regex(UUID_REGEX, 'Invalid item ID format'),
   type: z
-    .enum(['ADD', 'REMOVE', 'ADJUST'] as const)
+    .enum(['ADD', 'REMOVE', 'ADJUST', 'SHOPPING_SESSION'] as const)
     .refine((val): val is ActivityType => validActivityTypes.includes(val as ActivityType)),
   amount: z
     .number()
     .min(0.001, 'Amount must be greater than 0')
     .max(999999, 'Amount exceeds maximum allowed value'),
   source: z
-    .enum(['MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE'] as const)
+    .enum(['MANUAL', 'RECEIPT_SCAN', 'VISUAL_USAGE', 'SHOPPING_SESSION'] as const)
     .optional()
     .default('MANUAL')
     .refine((val): val is ActivitySource => validActivitySources.includes(val)),
