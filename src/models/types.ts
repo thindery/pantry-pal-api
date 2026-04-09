@@ -267,6 +267,8 @@ export interface BarcodeLookupResponse {
   error?: string;
   /** Whether the cached data is stale */
   stale?: boolean;
+  /** Whether the request was rate limited */
+  rateLimited?: boolean;
 }
 
 /**
