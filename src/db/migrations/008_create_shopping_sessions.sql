@@ -78,5 +78,5 @@ CREATE INDEX IF NOT EXISTS idx_session_receipts_captured_at ON session_receipts(
 -- ============================================================================
 
 -- Track migration completion
-INSERT OR IGNORE INTO migrations (version, applied_at, description) 
-VALUES (8, datetime('now'), 'Create shopping_sessions, session_items, and session_receipts tables');
+INSERT OR IGNORE INTO migrations (filename, applied_at) 
+VALUES ('008_create_shopping_sessions.sql', datetime('now'));
