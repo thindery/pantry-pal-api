@@ -191,3 +191,81 @@ export const paginationSchema = z.object({
 });
 
 export type PaginationParams = z.infer<typeof paginationSchema>;
+
+// ============================================================================
+// Shopping Session Validation
+// ============================================================================
+
+export const createSessionSchema = z.object({
+  storeName: z
+    .string()
+    .max(100, 'Store name must be less than 100 characters')
+    .optional(),
+  notes: z
+    .string()
+    .max(500, 'Notes must be less than 500 characters')
+    .optional(),
+});
+
+export const addSessionItemSchema = z.object({
+  barcode: z
+    .string()
+    .max(50, 'Barcode must be less than 50 characters')
+    .optional(),
+  name: z
+    .string()
+    .min(1, 'Item name is required')
+    .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
+    .trim(),
+  quantity: z
+    .number()
+    .min(0.001, 'Quantity must be greater than 0')
+    .max(999999, 'Quantity exceeds maximum allowed value')
+    .optional()
+    .default(1),
+  unit: z
+    .string()
+    .max(MAX_UNIT_LENGTH, `Unit must be less than ${MAX_UNIT_LENGTH} characters`)
+    .optional(),
+  price: z
+    .number()
+    .min(0, 'Price must be non-negative')
+    .max(999999.99, 'Price exceeds maximum allowed value')
+    .optional(),
+  category: z
+    .string()
+    .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
+    .optional(),
+});
+
+export const completeSessionSchema = z.object({
+  receiptUrl: z
+    .string()
+    .url('Must be a valid URL')
+    .max(500, 'Receipt URL must be less than 500 characters')
+    .optional(),
+  notes: z
+    .string()
+    .max(500, 'Notes must be less than 500 characters')
+    .optional(),
+});
+
+export const sessionIdSchema = z.object({
+  id: z
+    .string()
+    .regex(UUID_REGEX, 'Invalid UUID format'),
+});
+
+export const sessionItemIdSchema = z.object({
+  itemId: z
+    .string()
+    .regex(UUID_REGEX, 'Invalid UUID format'),
+});
+
+// ============================================================================
+// Type Exports (inferred from schemas)
+// ============================================================================
+
+export type CreateSessionInput = z.infer<typeof createSessionSchema>;
+export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
+export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;

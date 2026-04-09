@@ -47,7 +47,7 @@ export function closeDatabase(): void {
   }
 }
 
-// Re-export types
+// Re-export types (but NOT operations - causes circular dependency)
 export type { DatabaseAdapter } from './adapter';
 export type {
   PantryItem,
@@ -60,4 +60,13 @@ export type {
 export type {
   CreateItemInput,
   UpdateItemInput,
+  CreateSessionInput,
 } from './adapter';
+
+// Re-export shopping session types
+export type {
+  ShoppingSession,
+  ShoppingSessionWithItems,
+  SessionItem,
+  ShoppingSessionStatus,
+} from '../models/shoppingSession';

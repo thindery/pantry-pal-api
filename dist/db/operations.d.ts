@@ -1,5 +1,6 @@
-import { CreateItemInput, UpdateItemInput } from './adapter';
+import { CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult } from '../models/types';
+import { ShoppingSession, ShoppingSessionWithItems, SessionItem, SessionSummary } from '../models/shoppingSession';
 export declare function getAllItems(userId: string, category?: string): Promise<PantryItem[]>;
 export declare function getItemById(userId: string, id: string): Promise<PantryItem | null>;
 export declare function getItemByName(userId: string, name: string): Promise<PantryItem | null>;
@@ -17,4 +18,13 @@ export declare function processVisualUsage(userId: string, detections: UsageResu
     activities: Activity[];
     errors: string[];
 }>;
+export declare function createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession>;
+export declare function getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null>;
+export declare function getUserSessions(userId: string, limit?: number, offset?: number, status?: string): Promise<ShoppingSession[]>;
+export declare function getSessionCount(userId: string, status?: string): Promise<number>;
+export declare function addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
+export declare function removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean>;
+export declare function completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+export declare function cancelSession(userId: string, sessionId: string): Promise<boolean>;
+export declare function getSessionSummary(userId: string): Promise<SessionSummary>;
 //# sourceMappingURL=operations.d.ts.map

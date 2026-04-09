@@ -13,6 +13,12 @@ import {
   ProductInfo,
   ProductCacheInput,
 } from '../models/types';
+import {
+  ShoppingSession,
+  ShoppingSessionWithItems,
+  SessionItem,
+  SessionSummary,
+} from '../models/shoppingSession';
 
 /**
  * Input type for creating a new pantry item
@@ -34,6 +40,34 @@ export interface UpdateItemInput {
   quantity?: number;
   unit?: string;
   category?: string;
+}
+
+/**
+ * Input type for creating a new shopping session
+ */
+export interface CreateSessionInput {
+  storeName?: string;
+  notes?: string;
+}
+
+/**
+ * Input type for adding an item to a session
+ */
+export interface AddSessionItemInput {
+  barcode?: string;
+  name: string;
+  quantity: number;
+  unit?: string;
+  price?: number;
+  category?: string;
+}
+
+/**
+ * Input type for completing a session
+ */
+export interface CompleteSessionInput {
+  receiptUrl?: string;
+  notes?: string;
 }
 
 /**
@@ -231,4 +265,70 @@ export interface DatabaseAdapter {
    * Mark a client error as resolved
    */
   markErrorResolved(id: string): Promise<void>;
+
+  // ==========================================================================
+  // Shopping Session Operations
+  // ==========================================================================
+
+  /**
+   * Create a new shopping session for a user
+   */
+  createSession(userId: string, input: CreateSessionInput): Promise<ShoppingSession>;
+
+  /**
+   * Get a shopping session by ID with all items
+   */
+  getSessionById(userId: string, sessionId: string): Promise<ShoppingSessionWithItems | null>;
+
+  /**
+   * List shopping sessions for a user with pagination
+   * Includes only summary info (no items)
+   */
+  getUserSessions(
+    userId: string,
+    limit?: number,
+    offset?: number,
+    status?: string
+  ): Promise<ShoppingSession[]>;
+
+  /**
+   * Count total shopping sessions for a user (for pagination)
+   */
+  getSessionCount(userId: string, status?: string): Promise<number>;
+
+  /**
+   * Add an item to a shopping session
+   * Updates session totals
+   */
+  addSessionItem(
+    userId: string,
+    sessionId: string,
+    input: AddSessionItemInput
+  ): Promise<SessionItem>;
+
+  /**
+   * Remove an item from a shopping session
+   * Updates session totals
+   */
+  removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean>;
+
+  /**
+   * Complete a shopping session
+   * Marks as completed and sets final totals
+   */
+  completeSession(
+    userId: string,
+    sessionId: string,
+    input: CompleteSessionInput
+  ): Promise<ShoppingSession | null>;
+
+  /**
+   * Cancel a shopping session
+   */
+  cancelSession(userId: string, sessionId: string): Promise<boolean>;
+
+  /**
+   * Get session summary statistics for a user
+   */
+  getSessionSummary(userId: string): Promise<SessionSummary>;
 }

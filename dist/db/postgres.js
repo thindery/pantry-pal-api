@@ -34,6 +34,36 @@ function mapActivityRow(row) {
         source: row.source,
     };
 }
+function mapShoppingSessionRow(row) {
+    return {
+        id: row.id,
+        userId: row.user_id,
+        storeName: row.store_name ?? undefined,
+        startedAt: row.started_at,
+        completedAt: row.completed_at ?? undefined,
+        status: row.status,
+        totalAmount: row.total_amount,
+        itemCount: row.item_count,
+        receiptUrl: row.receipt_url ?? undefined,
+        notes: row.notes ?? undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+function mapSessionItemRow(row) {
+    return {
+        id: row.id,
+        sessionId: row.session_id,
+        barcode: row.barcode ?? undefined,
+        name: row.name,
+        quantity: row.quantity,
+        unit: row.unit ?? undefined,
+        price: row.price ?? undefined,
+        category: row.category ?? undefined,
+        addedAt: row.added_at,
+        updatedAt: row.updated_at,
+    };
+}
 class PostgresAdapter {
     pool = null;
     initialize() {
@@ -577,6 +607,160 @@ class PostgresAdapter {
     async markErrorResolved(id) {
         const pool = this.getPool();
         await pool.query('UPDATE client_errors SET resolved = 1 WHERE id = $1', [id]);
+    }
+    async createSession(userId, input) {
+        const pool = this.getPool();
+        const id = (0, uuid_1.v4)();
+        const now = new Date().toISOString();
+        await pool.query(`INSERT INTO shopping_sessions (
+        id, user_id, store_name, started_at, status, total_amount, item_count, notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [id, userId, input.storeName || null, now, 'active', 0, 0, input.notes || null, now, now]);
+        return {
+            id,
+            userId,
+            storeName: input.storeName,
+            startedAt: now,
+            status: 'active',
+            totalAmount: 0,
+            itemCount: 0,
+            notes: input.notes,
+            createdAt: now,
+            updatedAt: now,
+        };
+    }
+    async getSessionById(userId, sessionId) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT * FROM shopping_sessions WHERE user_id = $1 AND id = $2', [userId, sessionId]);
+        if (sessionResult.rows.length === 0) {
+            return null;
+        }
+        const sessionRow = sessionResult.rows[0];
+        const itemsResult = await pool.query('SELECT * FROM session_items WHERE session_id = $1 ORDER BY added_at DESC', [sessionId]);
+        return {
+            ...mapShoppingSessionRow(sessionRow),
+            items: itemsResult.rows.map(mapSessionItemRow),
+        };
+    }
+    async getUserSessions(userId, limit = 20, offset = 0, status) {
+        const pool = this.getPool();
+        let query = 'SELECT * FROM shopping_sessions WHERE user_id = $1';
+        const params = [userId];
+        let paramIndex = 2;
+        if (status) {
+            query += ` AND status = $${paramIndex++}`;
+            params.push(status);
+        }
+        query += ` ORDER BY started_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+        params.push(limit, offset);
+        const result = await pool.query(query, params);
+        return result.rows.map(mapShoppingSessionRow);
+    }
+    async getSessionCount(userId, status) {
+        const pool = this.getPool();
+        let query = 'SELECT COUNT(*) as count FROM shopping_sessions WHERE user_id = $1';
+        const params = [userId];
+        let paramIndex = 2;
+        if (status) {
+            query += ` AND status = $${paramIndex++}`;
+            params.push(status);
+        }
+        const result = await pool.query(query, params);
+        return parseInt(result.rows[0]?.count || '0', 10);
+    }
+    async addSessionItem(userId, sessionId, input) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2 AND status = $3', [sessionId, userId, 'active']);
+        if (sessionResult.rows.length === 0) {
+            throw new Error('Session not found or not active');
+        }
+        const id = (0, uuid_1.v4)();
+        const now = new Date().toISOString();
+        await pool.query(`INSERT INTO session_items (
+        id, session_id, barcode, name, quantity, unit, price, category, added_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [id, sessionId, input.barcode || null, input.name, input.quantity, input.unit || null, input.price || null, input.category || null, now, now]);
+        const itemTotal = (input.price || 0) * input.quantity;
+        await pool.query(`UPDATE shopping_sessions 
+       SET total_amount = total_amount + $1, 
+           item_count = item_count + 1,
+           updated_at = $2
+       WHERE id = $3`, [itemTotal, now, sessionId]);
+        return {
+            id,
+            sessionId,
+            barcode: input.barcode,
+            name: input.name,
+            quantity: input.quantity,
+            unit: input.unit,
+            price: input.price,
+            category: input.category,
+            addedAt: now,
+            updatedAt: now,
+        };
+    }
+    async removeSessionItem(_userId, sessionId, itemId) {
+        const pool = this.getPool();
+        const itemResult = await pool.query('SELECT quantity, price FROM session_items WHERE id = $1 AND session_id = $2', [itemId, sessionId]);
+        if (itemResult.rows.length === 0) {
+            return false;
+        }
+        const itemRow = itemResult.rows[0];
+        const deleteResult = await pool.query('DELETE FROM session_items WHERE id = $1 AND session_id = $2', [itemId, sessionId]);
+        if (deleteResult.rowCount === 0) {
+            return false;
+        }
+        const itemTotal = (itemRow.price || 0) * itemRow.quantity;
+        const now = new Date().toISOString();
+        await pool.query(`UPDATE shopping_sessions 
+       SET total_amount = GREATEST(0, total_amount - $1), 
+           item_count = GREATEST(0, item_count - 1),
+           updated_at = $2
+       WHERE id = $3`, [itemTotal, now, sessionId]);
+        return true;
+    }
+    async completeSession(userId, sessionId, input) {
+        const pool = this.getPool();
+        const now = new Date().toISOString();
+        const sessionResult = await pool.query('SELECT * FROM shopping_sessions WHERE id = $1 AND user_id = $2 AND status = $3', [sessionId, userId, 'active']);
+        if (sessionResult.rows.length === 0) {
+            return null;
+        }
+        const sessionRow = sessionResult.rows[0];
+        const totalsResult = await pool.query('SELECT SUM(price * quantity) as total FROM session_items WHERE session_id = $1', [sessionId]);
+        const finalTotal = totalsResult.rows[0]?.total || sessionRow.total_amount;
+        await pool.query(`UPDATE shopping_sessions 
+       SET status = 'completed',
+           completed_at = $1,
+           total_amount = $2,
+           receipt_url = COALESCE($3, receipt_url),
+           notes = COALESCE($4, notes),
+           updated_at = $5
+       WHERE id = $6 AND user_id = $7`, [now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId]);
+        return this.getSessionById(userId, sessionId);
+    }
+    async cancelSession(userId, sessionId) {
+        const pool = this.getPool();
+        const now = new Date().toISOString();
+        const result = await pool.query(`UPDATE shopping_sessions 
+       SET status = 'cancelled',
+           completed_at = $1,
+           updated_at = $2
+       WHERE id = $3 AND user_id = $4 AND status = 'active'`, [now, now, sessionId, userId]);
+        return (result.rowCount ?? 0) > 0;
+    }
+    async getSessionSummary(userId) {
+        const pool = this.getPool();
+        const result = await pool.query(`SELECT 
+        COUNT(*) as total_sessions,
+        COALESCE(SUM(total_amount), 0) as total_spent,
+        COALESCE(AVG(total_amount), 0) as avg_session_value
+      FROM shopping_sessions 
+      WHERE user_id = $1 AND status = 'completed'`, [userId]);
+        const row = result.rows[0];
+        return {
+            totalSessions: parseInt(row?.total_sessions || '0', 10),
+            totalSpent: parseFloat(row?.total_spent || '0'),
+            averageSessionValue: parseFloat(row?.avg_session_value || '0'),
+        };
     }
 }
 exports.PostgresAdapter = PostgresAdapter;
