@@ -1199,6 +1199,96 @@ export class PostgresAdapter implements DatabaseAdapter {
     };
   }
 
+  async addSessionToInventory(
+    userId: string,
+    sessionId: string
+  ): Promise<{ items: PantryItem[]; activities: Activity[] }> {
+    const pool = this.getPool();
+
+    // Get the session with items
+    const session = await this.getSessionById(userId, sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (session.status !== 'completed') {
+      throw new Error('Session must be completed before adding to inventory');
+    }
+
+    const items: PantryItem[] = [];
+    const activities: Activity[] = [];
+
+    // Process each session item with a barcode
+    for (const sessionItem of session.items) {
+      if (!sessionItem.barcode) {
+        continue;
+      }
+
+      // Check if item already exists by barcode
+      const existingResult = await pool.query(
+        'SELECT * FROM pantry_items WHERE user_id = $1 AND barcode = $2',
+        [userId, sessionItem.barcode]
+      );
+
+      if (existingResult.rows.length > 0) {
+        // Update existing item quantity
+        const existingRow = existingResult.rows[0] as PantryItemRow;
+        const newQuantity = existingRow.quantity + sessionItem.quantity;
+        const now = new Date().toISOString();
+
+        await pool.query(
+          'UPDATE pantry_items SET quantity = $1, last_updated = $2 WHERE user_id = $3 AND id = $4',
+          [newQuantity, now, userId, existingRow.id]
+        );
+
+        const updatedItem = await this.getItemById(userId, existingRow.id);
+        if (updatedItem) {
+          items.push(updatedItem);
+          // Log ADD activity
+          const activity = await this.logActivity(
+            userId,
+            updatedItem.id,
+            'ADD',
+            sessionItem.quantity,
+            'RECEIPT_SCAN'
+          );
+          if (activity) {
+            activities.push(activity);
+          }
+        }
+      } else {
+        // Create new pantry item
+        const id = uuidv4();
+        const now = new Date().toISOString();
+
+        await pool.query(
+          `INSERT INTO pantry_items (id, user_id, name, barcode, quantity, unit, category, last_updated)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [id, userId, sessionItem.name, sessionItem.barcode, sessionItem.quantity,
+           sessionItem.unit || 'pieces', sessionItem.category || 'general', now]
+        );
+
+        const newItem = await this.getItemById(userId, id);
+        if (newItem) {
+          items.push(newItem);
+          // Log ADD activity
+          const activity = await this.logActivity(
+            userId,
+            newItem.id,
+            'ADD',
+            sessionItem.quantity,
+            'RECEIPT_SCAN'
+          );
+          if (activity) {
+            activities.push(activity);
+          }
+        }
+      }
+    }
+
+    return { items, activities };
+  }
+
   // ==========================================================================
   // Session Receipt Operations
   // ==========================================================================

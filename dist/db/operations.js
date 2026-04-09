@@ -20,8 +20,10 @@ exports.getSessionCount = getSessionCount;
 exports.addSessionItem = addSessionItem;
 exports.removeSessionItem = removeSessionItem;
 exports.completeSession = completeSession;
+exports.updateSessionReceipt = updateSessionReceipt;
 exports.cancelSession = cancelSession;
 exports.getSessionSummary = getSessionSummary;
+exports.addSessionToInventory = addSessionToInventory;
 const index_1 = require("./index");
 function getAllItems(userId, category) {
     return (0, index_1.getDatabase)().getAllItems(userId, category);
@@ -83,10 +85,16 @@ function removeSessionItem(userId, sessionId, itemId) {
 function completeSession(userId, sessionId, input) {
     return (0, index_1.getDatabase)().completeSession(userId, sessionId, input);
 }
+function updateSessionReceipt(userId, sessionId, receiptUrl) {
+    return (0, index_1.getDatabase)().updateSessionReceipt(userId, sessionId, receiptUrl);
+}
 function cancelSession(userId, sessionId) {
     return (0, index_1.getDatabase)().cancelSession(userId, sessionId);
 }
 function getSessionSummary(userId) {
     return (0, index_1.getDatabase)().getSessionSummary(userId);
+}
+function addSessionToInventory(userId, sessionId) {
+    return (0, index_1.getDatabase)().addSessionToInventory(userId, sessionId);
 }
 //# sourceMappingURL=operations.js.map

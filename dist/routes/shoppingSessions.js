@@ -191,5 +191,33 @@ router.post('/:id/cancel', async (req, res) => {
         res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to cancel shopping session'));
     }
 });
+router.post('/:id/add-to-inventory', async (req, res) => {
+    try {
+        const userId = req.userId;
+        const sessionId = req.params.id;
+        const idValidation = validation_1.sessionIdSchema.safeParse({ id: sessionId });
+        if (!idValidation.success) {
+            res.status(400).json(errorResponse('VALIDATION_ERROR', 'Invalid session ID format'));
+            return;
+        }
+        const result = await (0, operations_1.addSessionToInventory)(userId, sessionId);
+        res.json(successResponse(result, {
+            itemsAdded: result.items.length,
+            activitiesLogged: result.activities.length,
+        }));
+    }
+    catch (error) {
+        console.error('[POST /shopping-sessions/:id/add-to-inventory] Error:', error);
+        if (error.message?.includes('Session not found')) {
+            res.status(404).json(errorResponse('NOT_FOUND', 'Shopping session not found'));
+            return;
+        }
+        if (error.message?.includes('Session must be completed')) {
+            res.status(400).json(errorResponse('INVALID_STATE', 'Session must be completed before adding to inventory'));
+            return;
+        }
+        res.status(500).json(errorResponse('INTERNAL_ERROR', 'Failed to add session items to inventory'));
+    }
+});
 exports.default = router;
 //# sourceMappingURL=shoppingSessions.js.map

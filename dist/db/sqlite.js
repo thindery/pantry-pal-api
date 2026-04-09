@@ -159,6 +159,22 @@ class SQLiteAdapter {
       CREATE INDEX IF NOT EXISTS idx_client_errors_resolved ON client_errors(resolved);
       CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at);
     `);
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS session_receipts (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        image_data TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        notes TEXT,
+        captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES shopping_sessions(id) ON DELETE CASCADE
+      );
+    `);
+        db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_session_receipts_session_id ON session_receipts(session_id);
+      CREATE INDEX IF NOT EXISTS idx_session_receipts_captured_at ON session_receipts(captured_at);
+    `);
         console.log('[DB] SQLite schema initialized successfully');
     }
     async getAllItems(userId, category) {
@@ -185,6 +201,12 @@ class SQLiteAdapter {
         const db = this.getDatabase();
         const stmt = db.prepare('SELECT * FROM pantry_items WHERE user_id = ? AND LOWER(name) = LOWER(?)');
         const row = stmt.get(userId, name);
+        return row ? mapPantryItemRow(row) : null;
+    }
+    async getItemByBarcode(userId, barcode) {
+        const db = this.getDatabase();
+        const stmt = db.prepare('SELECT * FROM pantry_items WHERE user_id = ? AND barcode = ?');
+        const row = stmt.get(userId, barcode);
         return row ? mapPantryItemRow(row) : null;
     }
     async createItem(userId, input) {
@@ -682,6 +704,23 @@ class SQLiteAdapter {
         updateStmt.run(now, finalTotal, input.receiptUrl || null, input.notes || null, now, sessionId, userId);
         return this.getSessionById(userId, sessionId);
     }
+    async updateSessionReceipt(userId, sessionId, receiptUrl) {
+        const db = this.getDatabase();
+        const now = new Date().toISOString();
+        const sessionStmt = db.prepare('SELECT * FROM shopping_sessions WHERE id = ? AND user_id = ? AND status = ?');
+        const sessionRow = sessionStmt.get(sessionId, userId, 'completed');
+        if (!sessionRow) {
+            return null;
+        }
+        const updateStmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET receipt_url = ?,
+          updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `);
+        updateStmt.run(receiptUrl, now, sessionId, userId);
+        return this.getSessionById(userId, sessionId);
+    }
     async cancelSession(userId, sessionId) {
         const db = this.getDatabase();
         const now = new Date().toISOString();
@@ -711,6 +750,128 @@ class SQLiteAdapter {
             totalSpent: result?.total_spent || 0,
             averageSessionValue: result?.avg_session_value || 0,
         };
+    }
+    async addSessionToInventory(userId, sessionId) {
+        const db = this.getDatabase();
+        const session = await this.getSessionById(userId, sessionId);
+        if (!session) {
+            throw new Error('Session not found');
+        }
+        if (session.status !== 'completed') {
+            throw new Error('Session must be completed before adding to inventory');
+        }
+        const items = [];
+        const activities = [];
+        for (const sessionItem of session.items) {
+            if (!sessionItem.barcode) {
+                continue;
+            }
+            let existingItem = await this.getItemByBarcode(userId, sessionItem.barcode);
+            if (existingItem) {
+                const updatedItem = await this.adjustItemQuantity(userId, existingItem.id, sessionItem.quantity);
+                if (updatedItem) {
+                    items.push(updatedItem);
+                    const activity = await this.logActivity(userId, updatedItem.id, 'ADD', sessionItem.quantity, 'RECEIPT_SCAN');
+                    if (activity) {
+                        activities.push(activity);
+                    }
+                }
+            }
+            else {
+                const newItem = await this.createItem(userId, {
+                    name: sessionItem.name,
+                    quantity: sessionItem.quantity,
+                    unit: sessionItem.unit || 'pieces',
+                    category: sessionItem.category || 'general',
+                    barcode: sessionItem.barcode,
+                });
+                items.push(newItem);
+                const activity = await this.logActivity(userId, newItem.id, 'ADD', sessionItem.quantity, 'RECEIPT_SCAN');
+                if (activity) {
+                    activities.push(activity);
+                }
+            }
+        }
+        return { items, activities };
+    }
+    async captureSessionReceipt(userId, sessionId, imageData, mimeType, notes) {
+        const db = this.getDatabase();
+        const sessionCheck = db.prepare('SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?');
+        const session = sessionCheck.get(sessionId, userId);
+        if (!session) {
+            throw new Error('Session not found');
+        }
+        const id = (0, uuid_1.v4)();
+        const now = new Date().toISOString();
+        const stmt = db.prepare(`
+      INSERT INTO session_receipts (
+        id, session_id, image_data, mime_type, notes, captured_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+        stmt.run(id, sessionId, imageData, mimeType, notes || null, now, now);
+        const updateStmt = db.prepare('UPDATE shopping_sessions SET receipt_url = ?, updated_at = ? WHERE id = ?');
+        updateStmt.run(id, now, sessionId);
+        return {
+            id,
+            sessionId,
+            imageData,
+            mimeType,
+            notes,
+            capturedAt: now,
+            createdAt: now,
+        };
+    }
+    async getSessionReceipts(userId, sessionId) {
+        const db = this.getDatabase();
+        const sessionCheck = db.prepare('SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?');
+        const session = sessionCheck.get(sessionId, userId);
+        if (!session) {
+            return [];
+        }
+        const stmt = db.prepare('SELECT * FROM session_receipts WHERE session_id = ? ORDER BY captured_at DESC');
+        const rows = stmt.all(sessionId);
+        return rows.map(row => ({
+            id: row.id,
+            sessionId: row.session_id,
+            imageData: row.image_data,
+            mimeType: row.mime_type,
+            notes: row.notes ?? undefined,
+            capturedAt: row.captured_at,
+            createdAt: row.created_at,
+        }));
+    }
+    async getSessionReceiptById(userId, sessionId, receiptId) {
+        const db = this.getDatabase();
+        const sessionCheck = db.prepare('SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?');
+        const session = sessionCheck.get(sessionId, userId);
+        if (!session) {
+            return null;
+        }
+        const stmt = db.prepare('SELECT * FROM session_receipts WHERE id = ? AND session_id = ?');
+        const row = stmt.get(receiptId, sessionId);
+        if (!row) {
+            return null;
+        }
+        return {
+            id: row.id,
+            sessionId: row.session_id,
+            imageData: row.image_data,
+            mimeType: row.mime_type,
+            notes: row.notes ?? undefined,
+            capturedAt: row.captured_at,
+            createdAt: row.created_at,
+        };
+    }
+    async deleteSessionReceipt(userId, sessionId, receiptId) {
+        const db = this.getDatabase();
+        const sessionCheck = db.prepare('SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?');
+        const session = sessionCheck.get(sessionId, userId);
+        if (!session) {
+            return false;
+        }
+        const stmt = db.prepare('DELETE FROM session_receipts WHERE id = ? AND session_id = ?');
+        const result = stmt.run(receiptId, sessionId);
+        return result.changes > 0;
     }
 }
 exports.SQLiteAdapter = SQLiteAdapter;

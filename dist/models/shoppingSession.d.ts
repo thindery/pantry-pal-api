@@ -84,4 +84,27 @@ export interface SessionSummary {
     totalSpent: number;
     averageSessionValue: number;
 }
+export interface SessionReceipt {
+    id: string;
+    sessionId: string;
+    imageData: string;
+    mimeType: string;
+    notes?: string;
+    capturedAt: string;
+    createdAt: string;
+}
+export interface SessionReceiptRow {
+    id: string;
+    session_id: string;
+    image_data: string;
+    mime_type: string;
+    notes: string | null;
+    captured_at: string;
+    created_at: string;
+}
+export interface CaptureReceiptRequest {
+    imageData: string;
+    mimeType: string;
+    notes?: string;
+}
 //# sourceMappingURL=shoppingSession.d.ts.map

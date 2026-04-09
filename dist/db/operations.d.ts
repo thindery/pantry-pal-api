@@ -25,6 +25,11 @@ export declare function getSessionCount(userId: string, status?: string): Promis
 export declare function addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
 export declare function removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean>;
 export declare function completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+export declare function updateSessionReceipt(userId: string, sessionId: string, receiptUrl: string): Promise<ShoppingSession | null>;
 export declare function cancelSession(userId: string, sessionId: string): Promise<boolean>;
 export declare function getSessionSummary(userId: string): Promise<SessionSummary>;
+export declare function addSessionToInventory(userId: string, sessionId: string): Promise<{
+    items: PantryItem[];
+    activities: Activity[];
+}>;
 //# sourceMappingURL=operations.d.ts.map

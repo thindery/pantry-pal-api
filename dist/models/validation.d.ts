@@ -220,7 +220,75 @@ export declare const sessionItemIdSchema: z.ZodObject<{
 }, {
     itemId: string;
 }>;
+export declare const updateSessionSchema: z.ZodObject<{
+    storeName: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+    items: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+        barcode: z.ZodOptional<z.ZodString>;
+        name: z.ZodString;
+        quantity: z.ZodOptional<z.ZodNumber>;
+        unit: z.ZodOptional<z.ZodString>;
+        price: z.ZodOptional<z.ZodNumber>;
+        category: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        id?: string | undefined;
+        barcode?: string | undefined;
+        quantity?: number | undefined;
+        unit?: string | undefined;
+        category?: string | undefined;
+        price?: number | undefined;
+    }, {
+        name: string;
+        id?: string | undefined;
+        barcode?: string | undefined;
+        quantity?: number | undefined;
+        unit?: string | undefined;
+        category?: string | undefined;
+        price?: number | undefined;
+    }>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    storeName?: string | undefined;
+    notes?: string | undefined;
+    items?: {
+        name: string;
+        id?: string | undefined;
+        barcode?: string | undefined;
+        quantity?: number | undefined;
+        unit?: string | undefined;
+        category?: string | undefined;
+        price?: number | undefined;
+    }[] | undefined;
+}, {
+    storeName?: string | undefined;
+    notes?: string | undefined;
+    items?: {
+        name: string;
+        id?: string | undefined;
+        barcode?: string | undefined;
+        quantity?: number | undefined;
+        unit?: string | undefined;
+        category?: string | undefined;
+        price?: number | undefined;
+    }[] | undefined;
+}>;
+export declare const captureReceiptSchema: z.ZodObject<{
+    imageData: z.ZodString;
+    mimeType: z.ZodEffects<z.ZodString, string, string>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    imageData: string;
+    mimeType: string;
+    notes?: string | undefined;
+}, {
+    imageData: string;
+    mimeType: string;
+    notes?: string | undefined;
+}>;
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
 export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
+export type CaptureReceiptInput = z.infer<typeof captureReceiptSchema>;
 //# sourceMappingURL=validation.d.ts.map

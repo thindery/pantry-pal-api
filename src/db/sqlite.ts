@@ -1135,6 +1135,42 @@ export class SQLiteAdapter implements DatabaseAdapter {
     return this.getSessionById(userId, sessionId);
   }
 
+  async updateSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptUrl: string
+  ): Promise<ShoppingSession | null> {
+    const db = this.getDatabase();
+    const now = new Date().toISOString();
+
+    // Verify session belongs to user and is completed
+    const sessionStmt = db.prepare(
+      'SELECT * FROM shopping_sessions WHERE id = ? AND user_id = ? AND status = ?'
+    );
+    const sessionRow = sessionStmt.get(sessionId, userId, 'completed') as ShoppingSessionRow | undefined;
+
+    if (!sessionRow) {
+      return null;
+    }
+
+    // Update session receipt_url
+    const updateStmt = db.prepare(`
+      UPDATE shopping_sessions 
+      SET receipt_url = ?,
+          updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `);
+
+    updateStmt.run(
+      receiptUrl,
+      now,
+      sessionId,
+      userId
+    );
+
+    return this.getSessionById(userId, sessionId);
+  }
+
   async cancelSession(userId: string, sessionId: string): Promise<boolean> {
     const db = this.getDatabase();
     const now = new Date().toISOString();

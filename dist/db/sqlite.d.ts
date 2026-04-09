@@ -1,6 +1,6 @@
 import { DatabaseAdapter, CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
-import { ShoppingSession, SessionItem, ShoppingSessionWithItems, SessionSummary } from '../models/shoppingSession';
+import { ShoppingSession, SessionItem, ShoppingSessionWithItems, SessionSummary, SessionReceipt } from '../models/shoppingSession';
 export declare class SQLiteAdapter implements DatabaseAdapter {
     private db;
     initialize(): void;
@@ -10,6 +10,7 @@ export declare class SQLiteAdapter implements DatabaseAdapter {
     getAllItems(userId: string, category?: string): Promise<PantryItem[]>;
     getItemById(userId: string, id: string): Promise<PantryItem | null>;
     getItemByName(userId: string, name: string): Promise<PantryItem | null>;
+    getItemByBarcode(userId: string, barcode: string): Promise<PantryItem | null>;
     createItem(userId: string, input: CreateItemInput): Promise<PantryItem>;
     updateItem(userId: string, id: string, input: UpdateItemInput): Promise<PantryItem | null>;
     deleteItem(userId: string, id: string): Promise<boolean>;
@@ -68,7 +69,16 @@ export declare class SQLiteAdapter implements DatabaseAdapter {
     addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
     removeSessionItem(_userId: string, sessionId: string, itemId: string): Promise<boolean>;
     completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+    updateSessionReceipt(userId: string, sessionId: string, receiptUrl: string): Promise<ShoppingSession | null>;
     cancelSession(userId: string, sessionId: string): Promise<boolean>;
     getSessionSummary(userId: string): Promise<SessionSummary>;
+    addSessionToInventory(userId: string, sessionId: string): Promise<{
+        items: PantryItem[];
+        activities: Activity[];
+    }>;
+    captureSessionReceipt(userId: string, sessionId: string, imageData: string, mimeType: string, notes?: string): Promise<SessionReceipt>;
+    getSessionReceipts(userId: string, sessionId: string): Promise<SessionReceipt[]>;
+    getSessionReceiptById(userId: string, sessionId: string, receiptId: string): Promise<SessionReceipt | null>;
+    deleteSessionReceipt(userId: string, sessionId: string, receiptId: string): Promise<boolean>;
 }
 //# sourceMappingURL=sqlite.d.ts.map

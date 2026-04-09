@@ -762,6 +762,123 @@ class PostgresAdapter {
             averageSessionValue: parseFloat(row?.avg_session_value || '0'),
         };
     }
+    async addSessionToInventory(userId, sessionId) {
+        const pool = this.getPool();
+        const session = await this.getSessionById(userId, sessionId);
+        if (!session) {
+            throw new Error('Session not found');
+        }
+        if (session.status !== 'completed') {
+            throw new Error('Session must be completed before adding to inventory');
+        }
+        const items = [];
+        const activities = [];
+        for (const sessionItem of session.items) {
+            if (!sessionItem.barcode) {
+                continue;
+            }
+            const existingResult = await pool.query('SELECT * FROM pantry_items WHERE user_id = $1 AND barcode = $2', [userId, sessionItem.barcode]);
+            if (existingResult.rows.length > 0) {
+                const existingRow = existingResult.rows[0];
+                const newQuantity = existingRow.quantity + sessionItem.quantity;
+                const now = new Date().toISOString();
+                await pool.query('UPDATE pantry_items SET quantity = $1, last_updated = $2 WHERE user_id = $3 AND id = $4', [newQuantity, now, userId, existingRow.id]);
+                const updatedItem = await this.getItemById(userId, existingRow.id);
+                if (updatedItem) {
+                    items.push(updatedItem);
+                    const activity = await this.logActivity(userId, updatedItem.id, 'ADD', sessionItem.quantity, 'RECEIPT_SCAN');
+                    if (activity) {
+                        activities.push(activity);
+                    }
+                }
+            }
+            else {
+                const id = (0, uuid_1.v4)();
+                const now = new Date().toISOString();
+                await pool.query(`INSERT INTO pantry_items (id, user_id, name, barcode, quantity, unit, category, last_updated)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [id, userId, sessionItem.name, sessionItem.barcode, sessionItem.quantity,
+                    sessionItem.unit || 'pieces', sessionItem.category || 'general', now]);
+                const newItem = await this.getItemById(userId, id);
+                if (newItem) {
+                    items.push(newItem);
+                    const activity = await this.logActivity(userId, newItem.id, 'ADD', sessionItem.quantity, 'RECEIPT_SCAN');
+                    if (activity) {
+                        activities.push(activity);
+                    }
+                }
+            }
+        }
+        return { items, activities };
+    }
+    async captureSessionReceipt(userId, sessionId, imageData, mimeType, notes) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (sessionResult.rows.length === 0) {
+            throw new Error('Session not found');
+        }
+        const id = (0, uuid_1.v4)();
+        const now = new Date().toISOString();
+        await pool.query(`INSERT INTO session_receipts (
+        id, session_id, image_data, mime_type, notes, captured_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, sessionId, imageData, mimeType, notes || null, now, now]);
+        await pool.query('UPDATE shopping_sessions SET receipt_url = $1, updated_at = $2 WHERE id = $3', [id, now, sessionId]);
+        return {
+            id,
+            sessionId,
+            imageData,
+            mimeType,
+            notes,
+            capturedAt: now,
+            createdAt: now,
+        };
+    }
+    async getSessionReceipts(userId, sessionId) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (sessionResult.rows.length === 0) {
+            return [];
+        }
+        const result = await pool.query('SELECT * FROM session_receipts WHERE session_id = $1 ORDER BY captured_at DESC', [sessionId]);
+        return result.rows.map(row => ({
+            id: row.id,
+            sessionId: row.session_id,
+            imageData: row.image_data,
+            mimeType: row.mime_type,
+            notes: row.notes ?? undefined,
+            capturedAt: row.captured_at,
+            createdAt: row.created_at,
+        }));
+    }
+    async getSessionReceiptById(userId, sessionId, receiptId) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (sessionResult.rows.length === 0) {
+            return null;
+        }
+        const result = await pool.query('SELECT * FROM session_receipts WHERE id = $1 AND session_id = $2', [receiptId, sessionId]);
+        if (result.rows.length === 0) {
+            return null;
+        }
+        const row = result.rows[0];
+        return {
+            id: row.id,
+            sessionId: row.session_id,
+            imageData: row.image_data,
+            mimeType: row.mime_type,
+            notes: row.notes ?? undefined,
+            capturedAt: row.captured_at,
+            createdAt: row.created_at,
+        };
+    }
+    async deleteSessionReceipt(userId, sessionId, receiptId) {
+        const pool = this.getPool();
+        const sessionResult = await pool.query('SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (sessionResult.rows.length === 0) {
+            return false;
+        }
+        const result = await pool.query('DELETE FROM session_receipts WHERE id = $1 AND session_id = $2', [receiptId, sessionId]);
+        return (result.rowCount ?? 0) > 0;
+    }
 }
 exports.PostgresAdapter = PostgresAdapter;
 //# sourceMappingURL=postgres.js.map

@@ -1,6 +1,6 @@
 import { DatabaseAdapter, CreateItemInput, UpdateItemInput, CreateSessionInput, AddSessionItemInput, CompleteSessionInput } from './adapter';
 import { PantryItem, Activity, ActivityType, ActivitySource, ScanResult, UsageResult, ProductInfo, ProductCacheInput } from '../models/types';
-import { ShoppingSession, SessionItem, ShoppingSessionWithItems, SessionSummary } from '../models/shoppingSession';
+import { ShoppingSession, SessionItem, ShoppingSessionWithItems, SessionSummary, SessionReceipt } from '../models/shoppingSession';
 export declare class PostgresAdapter implements DatabaseAdapter {
     private pool;
     initialize(): void;
@@ -71,5 +71,13 @@ export declare class PostgresAdapter implements DatabaseAdapter {
     completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
     cancelSession(userId: string, sessionId: string): Promise<boolean>;
     getSessionSummary(userId: string): Promise<SessionSummary>;
+    addSessionToInventory(userId: string, sessionId: string): Promise<{
+        items: PantryItem[];
+        activities: Activity[];
+    }>;
+    captureSessionReceipt(userId: string, sessionId: string, imageData: string, mimeType: string, notes?: string): Promise<SessionReceipt>;
+    getSessionReceipts(userId: string, sessionId: string): Promise<SessionReceipt[]>;
+    getSessionReceiptById(userId: string, sessionId: string, receiptId: string): Promise<SessionReceipt | null>;
+    deleteSessionReceipt(userId: string, sessionId: string, receiptId: string): Promise<boolean>;
 }
 //# sourceMappingURL=postgres.d.ts.map

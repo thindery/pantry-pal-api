@@ -92,7 +92,16 @@ export interface DatabaseAdapter {
     addSessionItem(userId: string, sessionId: string, input: AddSessionItemInput): Promise<SessionItem>;
     removeSessionItem(userId: string, sessionId: string, itemId: string): Promise<boolean>;
     completeSession(userId: string, sessionId: string, input: CompleteSessionInput): Promise<ShoppingSession | null>;
+    updateSessionReceipt(userId: string, sessionId: string, receiptUrl: string): Promise<ShoppingSession | null>;
     cancelSession(userId: string, sessionId: string): Promise<boolean>;
     getSessionSummary(userId: string): Promise<SessionSummary>;
+    addSessionToInventory(userId: string, sessionId: string): Promise<{
+        items: PantryItem[];
+        activities: Activity[];
+    }>;
+    captureSessionReceipt(userId: string, sessionId: string, imageData: string, mimeType: string, notes?: string): Promise<SessionReceipt>;
+    getSessionReceipts(userId: string, sessionId: string): Promise<SessionReceipt[]>;
+    getSessionReceiptById(userId: string, sessionId: string, receiptId: string): Promise<SessionReceipt | null>;
+    deleteSessionReceipt(userId: string, sessionId: string, receiptId: string): Promise<boolean>;
 }
 //# sourceMappingURL=adapter.d.ts.map
