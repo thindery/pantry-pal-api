@@ -148,10 +148,25 @@ export function completeSession(
   return getDatabase().completeSession(userId, sessionId, input);
 }
 
+export function updateSessionReceipt(
+  userId: string,
+  sessionId: string,
+  receiptUrl: string
+): Promise<ShoppingSession | null> {
+  return getDatabase().updateSessionReceipt(userId, sessionId, receiptUrl);
+}
+
 export function cancelSession(userId: string, sessionId: string): Promise<boolean> {
   return getDatabase().cancelSession(userId, sessionId);
 }
 
 export function getSessionSummary(userId: string): Promise<SessionSummary> {
   return getDatabase().getSessionSummary(userId);
+}
+
+export function addSessionToInventory(
+  userId: string,
+  sessionId: string
+): Promise<{ items: PantryItem[]; activities: Activity[] }> {
+  return getDatabase().addSessionToInventory(userId, sessionId);
 }

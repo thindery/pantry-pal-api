@@ -288,6 +288,17 @@ export class SQLiteAdapter implements DatabaseAdapter {
     return row ? mapPantryItemRow(row) : null;
   }
 
+  async getItemByBarcode(userId: string, barcode: string): Promise<PantryItem | null> {
+    const db = this.getDatabase();
+
+    const stmt = db.prepare(
+      'SELECT * FROM pantry_items WHERE user_id = ? AND barcode = ?'
+    );
+    const row = stmt.get(userId, barcode) as PantryItemRow | undefined;
+
+    return row ? mapPantryItemRow(row) : null;
+  }
+
   async createItem(userId: string, input: CreateItemInput): Promise<PantryItem> {
     const db = this.getDatabase();
 
@@ -1163,6 +1174,82 @@ export class SQLiteAdapter implements DatabaseAdapter {
       totalSpent: result?.total_spent || 0,
       averageSessionValue: result?.avg_session_value || 0,
     };
+  }
+
+  async addSessionToInventory(
+    userId: string,
+    sessionId: string
+  ): Promise<{ items: PantryItem[]; activities: Activity[] }> {
+    const db = this.getDatabase();
+
+    // Get the session with items
+    const session = await this.getSessionById(userId, sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (session.status !== 'completed') {
+      throw new Error('Session must be completed before adding to inventory');
+    }
+
+    const items: PantryItem[] = [];
+    const activities: Activity[] = [];
+
+    // Process each session item with a barcode
+    for (const sessionItem of session.items) {
+      if (!sessionItem.barcode) {
+        continue;
+      }
+
+      // Check if item already exists
+      let existingItem = await this.getItemByBarcode(userId, sessionItem.barcode);
+
+      if (existingItem) {
+        // Update existing item quantity
+        const updatedItem = await this.adjustItemQuantity(
+          userId,
+          existingItem.id,
+          sessionItem.quantity
+        );
+        if (updatedItem) {
+          items.push(updatedItem);
+          // Log ADD activity
+          const activity = await this.logActivity(
+            userId,
+            updatedItem.id,
+            'ADD',
+            sessionItem.quantity,
+            'RECEIPT_SCAN'
+          );
+          if (activity) {
+            activities.push(activity);
+          }
+        }
+      } else {
+        // Create new pantry item
+        const newItem = await this.createItem(userId, {
+          name: sessionItem.name,
+          quantity: sessionItem.quantity,
+          unit: sessionItem.unit || 'pieces',
+          category: sessionItem.category || 'general',
+          barcode: sessionItem.barcode,
+        });
+        items.push(newItem);
+        // Log ADD activity
+        const activity = await this.logActivity(
+          userId,
+          newItem.id,
+          'ADD',
+          sessionItem.quantity,
+          'RECEIPT_SCAN'
+        );
+        if (activity) {
+          activities.push(activity);
+        }
+      }
+    }
+
+    return { items, activities };
   }
 
   // ==========================================================================

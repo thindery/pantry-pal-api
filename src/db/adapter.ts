@@ -323,6 +323,16 @@ export interface DatabaseAdapter {
   ): Promise<ShoppingSession | null>;
 
   /**
+   * Update receipt URL for a completed session
+   * Only allows updating sessions with status='completed'
+   */
+  updateSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptUrl: string
+  ): Promise<ShoppingSession | null>;
+
+  /**
    * Cancel a shopping session
    */
   cancelSession(userId: string, sessionId: string): Promise<boolean>;
@@ -331,6 +341,17 @@ export interface DatabaseAdapter {
    * Get session summary statistics for a user
    */
   getSessionSummary(userId: string): Promise<SessionSummary>;
+
+  /**
+   * Add all items from a completed shopping session to pantry inventory
+   * Creates PantryItem entries for each SessionItem with a barcode
+   * Logs ADD activity for each item added
+   * Returns the created PantryItem entries
+   */
+  addSessionToInventory(
+    userId: string,
+    sessionId: string
+  ): Promise<{ items: PantryItem[]; activities: Activity[] }>;
 
   // ==========================================================================
   // Session Receipt Operations
