@@ -27,6 +27,7 @@ import {
   SessionItemRow,
   ShoppingSessionWithItems,
   SessionSummary,
+  SessionReceipt,
 } from '../models/shoppingSession';
 
 // ============================================================================
@@ -216,6 +217,26 @@ export class SQLiteAdapter implements DatabaseAdapter {
       CREATE INDEX IF NOT EXISTS idx_product_cache_updated_at ON product_cache(updated_at);
       CREATE INDEX IF NOT EXISTS idx_client_errors_resolved ON client_errors(resolved);
       CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at);
+    `);
+
+    // Session Receipts table for storing receipt images
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS session_receipts (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        image_data TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        notes TEXT,
+        captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES shopping_sessions(id) ON DELETE CASCADE
+      );
+    `);
+
+    // Indexes for session receipts
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_session_receipts_session_id ON session_receipts(session_id);
+      CREATE INDEX IF NOT EXISTS idx_session_receipts_captured_at ON session_receipts(captured_at);
     `);
 
     console.log('[DB] SQLite schema initialized successfully');
@@ -1142,5 +1163,166 @@ export class SQLiteAdapter implements DatabaseAdapter {
       totalSpent: result?.total_spent || 0,
       averageSessionValue: result?.avg_session_value || 0,
     };
+  }
+
+  // ==========================================================================
+  // Session Receipt Operations
+  // ==========================================================================
+
+  async captureSessionReceipt(
+    userId: string,
+    sessionId: string,
+    imageData: string,
+    mimeType: string,
+    notes?: string
+  ): Promise<SessionReceipt> {
+    const db = this.getDatabase();
+
+    // Verify session belongs to user
+    const sessionCheck = db.prepare(
+      'SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?'
+    );
+    const session = sessionCheck.get(sessionId, userId);
+
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare(`
+      INSERT INTO session_receipts (
+        id, session_id, image_data, mime_type, notes, captured_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(id, sessionId, imageData, mimeType, notes || null, now, now);
+
+    // Update session with receipt reference
+    const updateStmt = db.prepare(
+      'UPDATE shopping_sessions SET receipt_url = ?, updated_at = ? WHERE id = ?'
+    );
+    updateStmt.run(id, now, sessionId);
+
+    return {
+      id,
+      sessionId,
+      imageData,
+      mimeType,
+      notes,
+      capturedAt: now,
+      createdAt: now,
+    };
+  }
+
+  async getSessionReceipts(
+    userId: string,
+    sessionId: string
+  ): Promise<SessionReceipt[]> {
+    const db = this.getDatabase();
+
+    // Verify session belongs to user
+    const sessionCheck = db.prepare(
+      'SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?'
+    );
+    const session = sessionCheck.get(sessionId, userId);
+
+    if (!session) {
+      return [];
+    }
+
+    const stmt = db.prepare(
+      'SELECT * FROM session_receipts WHERE session_id = ? ORDER BY captured_at DESC'
+    );
+    const rows = stmt.all(sessionId) as Array<{
+      id: string;
+      session_id: string;
+      image_data: string;
+      mime_type: string;
+      notes: string | null;
+      captured_at: string;
+      created_at: string;
+    }>;
+
+    return rows.map(row => ({
+      id: row.id,
+      sessionId: row.session_id,
+      imageData: row.image_data,
+      mimeType: row.mime_type,
+      notes: row.notes ?? undefined,
+      capturedAt: row.captured_at,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async getSessionReceiptById(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<SessionReceipt | null> {
+    const db = this.getDatabase();
+
+    // Verify session belongs to user
+    const sessionCheck = db.prepare(
+      'SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?'
+    );
+    const session = sessionCheck.get(sessionId, userId);
+
+    if (!session) {
+      return null;
+    }
+
+    const stmt = db.prepare(
+      'SELECT * FROM session_receipts WHERE id = ? AND session_id = ?'
+    );
+    const row = stmt.get(receiptId, sessionId) as {
+      id: string;
+      session_id: string;
+      image_data: string;
+      mime_type: string;
+      notes: string | null;
+      captured_at: string;
+      created_at: string;
+    } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      imageData: row.image_data,
+      mimeType: row.mime_type,
+      notes: row.notes ?? undefined,
+      capturedAt: row.captured_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  async deleteSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<boolean> {
+    const db = this.getDatabase();
+
+    // Verify session belongs to user
+    const sessionCheck = db.prepare(
+      'SELECT id FROM shopping_sessions WHERE id = ? AND user_id = ?'
+    );
+    const session = sessionCheck.get(sessionId, userId);
+
+    if (!session) {
+      return false;
+    }
+
+    const stmt = db.prepare(
+      'DELETE FROM session_receipts WHERE id = ? AND session_id = ?'
+    );
+    const result = stmt.run(receiptId, sessionId);
+
+    return result.changes > 0;
   }
 }

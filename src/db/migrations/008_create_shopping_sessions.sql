@@ -54,9 +54,29 @@ CREATE INDEX IF NOT EXISTS idx_session_items_session_id ON session_items(session
 CREATE INDEX IF NOT EXISTS idx_session_items_barcode ON session_items(barcode);
 
 -- ============================================================================
+-- Session Receipts Table
+-- Stores receipt images captured during shopping sessions
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS session_receipts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    image_data TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    notes TEXT,
+    captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES shopping_sessions(id) ON DELETE CASCADE
+);
+
+-- Indexes for receipt queries
+CREATE INDEX IF NOT EXISTS idx_session_receipts_session_id ON session_receipts(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_receipts_captured_at ON session_receipts(captured_at);
+
+-- ============================================================================
 -- Migration Metadata
 -- ============================================================================
 
 -- Track migration completion
 INSERT OR IGNORE INTO migrations (version, applied_at, description) 
-VALUES (8, datetime('now'), 'Create shopping_sessions and session_items tables');
+VALUES (8, datetime('now'), 'Create shopping_sessions, session_items, and session_receipts tables');

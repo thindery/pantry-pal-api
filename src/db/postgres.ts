@@ -25,6 +25,7 @@ import {
   SessionItemRow,
   ShoppingSessionWithItems,
   SessionSummary,
+  SessionReceipt,
 } from '../models/shoppingSession';
 
 // ============================================================================
@@ -1196,5 +1197,151 @@ export class PostgresAdapter implements DatabaseAdapter {
       totalSpent: parseFloat(row?.total_spent || '0'),
       averageSessionValue: parseFloat(row?.avg_session_value || '0'),
     };
+  }
+
+  // ==========================================================================
+  // Session Receipt Operations
+  // ==========================================================================
+
+  async captureSessionReceipt(
+    userId: string,
+    sessionId: string,
+    imageData: string,
+    mimeType: string,
+    notes?: string
+  ): Promise<SessionReceipt> {
+    const pool = this.getPool();
+
+    // Verify session belongs to user
+    const sessionResult = await pool.query(
+      'SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    // Insert receipt
+    await pool.query(
+      `INSERT INTO session_receipts (
+        id, session_id, image_data, mime_type, notes, captured_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, sessionId, imageData, mimeType, notes || null, now, now]
+    );
+
+    // Update session with receipt reference
+    await pool.query(
+      'UPDATE shopping_sessions SET receipt_url = $1, updated_at = $2 WHERE id = $3',
+      [id, now, sessionId]
+    );
+
+    return {
+      id,
+      sessionId,
+      imageData,
+      mimeType,
+      notes,
+      capturedAt: now,
+      createdAt: now,
+    };
+  }
+
+  async getSessionReceipts(
+    userId: string,
+    sessionId: string
+  ): Promise<SessionReceipt[]> {
+    const pool = this.getPool();
+
+    // Verify session belongs to user
+    const sessionResult = await pool.query(
+      'SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return [];
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM session_receipts WHERE session_id = $1 ORDER BY captured_at DESC',
+      [sessionId]
+    );
+
+    return result.rows.map(row => ({
+      id: row.id,
+      sessionId: row.session_id,
+      imageData: row.image_data,
+      mimeType: row.mime_type,
+      notes: row.notes ?? undefined,
+      capturedAt: row.captured_at,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async getSessionReceiptById(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<SessionReceipt | null> {
+    const pool = this.getPool();
+
+    // Verify session belongs to user
+    const sessionResult = await pool.query(
+      'SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return null;
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM session_receipts WHERE id = $1 AND session_id = $2',
+      [receiptId, sessionId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      imageData: row.image_data,
+      mimeType: row.mime_type,
+      notes: row.notes ?? undefined,
+      capturedAt: row.captured_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  async deleteSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<boolean> {
+    const pool = this.getPool();
+
+    // Verify session belongs to user
+    const sessionResult = await pool.query(
+      'SELECT id FROM shopping_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return false;
+    }
+
+    const result = await pool.query(
+      'DELETE FROM session_receipts WHERE id = $1 AND session_id = $2',
+      [receiptId, sessionId]
+    );
+
+    return (result.rowCount ?? 0) > 0;
   }
 }

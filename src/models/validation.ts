@@ -262,6 +262,70 @@ export const sessionItemIdSchema = z.object({
     .regex(UUID_REGEX, 'Invalid UUID format'),
 });
 
+export const updateSessionSchema = z.object({
+  storeName: z
+    .string()
+    .max(100, 'Store name must be less than 100 characters')
+    .optional(),
+  notes: z
+    .string()
+    .max(500, 'Notes must be less than 500 characters')
+    .optional(),
+  items: z
+    .array(
+      z.object({
+        id: z
+          .string()
+          .regex(UUID_REGEX, 'Invalid UUID format')
+          .optional(),
+        barcode: z
+          .string()
+          .max(50, 'Barcode must be less than 50 characters')
+          .optional(),
+        name: z
+          .string()
+          .min(1, 'Item name is required')
+          .max(MAX_ITEM_NAME_LENGTH, `Item name must be less than ${MAX_ITEM_NAME_LENGTH} characters`)
+          .trim(),
+        quantity: z
+          .number()
+          .min(0.001, 'Quantity must be greater than 0')
+          .max(999999, 'Quantity exceeds maximum allowed value')
+          .optional(),
+        unit: z
+          .string()
+          .max(MAX_UNIT_LENGTH, `Unit must be less than ${MAX_UNIT_LENGTH} characters`)
+          .optional(),
+        price: z
+          .number()
+          .min(0, 'Price must be non-negative')
+          .max(999999.99, 'Price exceeds maximum allowed value')
+          .optional(),
+        category: z
+          .string()
+          .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
+          .optional(),
+      })
+    )
+    .optional(),
+});
+
+export const captureReceiptSchema = z.object({
+  imageData: z
+    .string()
+    .min(1, 'Image data is required')
+    .max(10000000, 'Image data too large'),
+  mimeType: z
+    .string()
+    .refine((val) => ['image/jpeg', 'image/png', 'image/webp'].includes(val), {
+      message: 'MIME type must be image/jpeg, image/png, or image/webp',
+    }),
+  notes: z
+    .string()
+    .max(500, 'Notes must be less than 500 characters')
+    .optional(),
+});
+
 // ============================================================================
 // Type Exports (inferred from schemas)
 // ============================================================================
@@ -269,3 +333,5 @@ export const sessionItemIdSchema = z.object({
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export type AddSessionItemInput = z.infer<typeof addSessionItemSchema>;
 export type CompleteSessionInput = z.infer<typeof completeSessionSchema>;
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
+export type CaptureReceiptInput = z.infer<typeof captureReceiptSchema>;

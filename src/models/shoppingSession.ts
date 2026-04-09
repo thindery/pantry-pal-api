@@ -180,3 +180,52 @@ export interface SessionSummary {
   totalSpent: number;
   averageSessionValue: number;
 }
+
+// ============================================================================
+// Session Receipt Models
+// ============================================================================
+
+/**
+ * Represents a receipt image captured for a shopping session
+ */
+export interface SessionReceipt {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Reference to parent shopping session */
+  sessionId: string;
+  /** Base64 encoded image data */
+  imageData: string;
+  /** MIME type of the image (e.g., 'image/jpeg', 'image/png') */
+  mimeType: string;
+  /** Optional notes about the receipt */
+  notes?: string;
+  /** ISO 8601 timestamp when receipt was captured */
+  capturedAt: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+}
+
+/**
+ * Database schema representation for session_receipts table
+ */
+export interface SessionReceiptRow {
+  id: string;
+  session_id: string;
+  image_data: string;
+  mime_type: string;
+  notes: string | null;
+  captured_at: string;
+  created_at: string;
+}
+
+/**
+ * Request body for capturing a receipt
+ */
+export interface CaptureReceiptRequest {
+  /** Base64 encoded image data */
+  imageData: string;
+  /** MIME type of the image */
+  mimeType: string;
+  /** Optional notes about the receipt */
+  notes?: string;
+}

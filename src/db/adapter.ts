@@ -331,4 +331,46 @@ export interface DatabaseAdapter {
    * Get session summary statistics for a user
    */
   getSessionSummary(userId: string): Promise<SessionSummary>;
+
+  // ==========================================================================
+  // Session Receipt Operations
+  // ==========================================================================
+
+  /**
+   * Capture a receipt image for a session
+   */
+  captureSessionReceipt(
+    userId: string,
+    sessionId: string,
+    imageData: string,
+    mimeType: string,
+    notes?: string
+  ): Promise<SessionReceipt>;
+
+  /**
+   * Get all receipts for a shopping session
+   */
+  getSessionReceipts(
+    userId: string,
+    sessionId: string
+  ): Promise<SessionReceipt[]>;
+
+  /**
+   * Get a single receipt by ID
+   */
+  getSessionReceiptById(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<SessionReceipt | null>;
+
+  /**
+   * Delete a session receipt
+   */
+  deleteSessionReceipt(
+    userId: string,
+    sessionId: string,
+    receiptId: string
+  ): Promise<boolean>;
 }
+
