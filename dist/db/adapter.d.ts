@@ -36,6 +36,7 @@ export interface DatabaseAdapter {
     getAllItems(userId: string, category?: string): Promise<PantryItem[]>;
     getItemById(userId: string, id: string): Promise<PantryItem | null>;
     getItemByName(userId: string, name: string): Promise<PantryItem | null>;
+    getItemByBarcode(userId: string, barcode: string): Promise<PantryItem | null>;
     createItem(userId: string, input: CreateItemInput): Promise<PantryItem>;
     updateItem(userId: string, id: string, input: UpdateItemInput): Promise<PantryItem | null>;
     deleteItem(userId: string, id: string): Promise<boolean>;
