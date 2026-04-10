@@ -352,6 +352,17 @@ export class PostgresAdapter implements DatabaseAdapter {
     return result.rows[0] ? mapPantryItemRow(result.rows[0]) : null;
   }
 
+  async getItemByBarcode(userId: string, barcode: string): Promise<PantryItem | null> {
+    const pool = this.getPool();
+
+    const result = await pool.query(
+      'SELECT * FROM pantry_items WHERE user_id = $1 AND barcode = $2',
+      [userId, barcode]
+    );
+
+    return result.rows[0] ? mapPantryItemRow(result.rows[0]) : null;
+  }
+
   async createItem(userId: string, input: CreateItemInput): Promise<PantryItem> {
     const pool = this.getPool();
 

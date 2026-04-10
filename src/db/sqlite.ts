@@ -185,7 +185,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
         source TEXT NOT NULL,
         info_last_synced TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        needs_sync INTEGER DEFAULT 0,
+        sync_retry_count INTEGER DEFAULT 0,
+        last_error TEXT
       );
     `);
 
