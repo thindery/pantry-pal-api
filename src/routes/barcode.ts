@@ -205,6 +205,97 @@ async function lookupOpenFoodFacts(barcode: string): Promise<BarcodeLookupRespon
 // ============================================================================
 
 /**
+ * POST /api/barcode/:barcode
+ * Save a product to the database by barcode
+ * Creates a new pantry item from barcode lookup
+ */
+router.post('/:barcode', async (req, res) => {
+  try {
+    const barcode = req.params.barcode;
+    const { name, quantity = 1, unit = 'pieces', category, brand, imageUrl } = req.body;
+
+    // Validate barcode
+    if (!barcode || barcode.length < 8) {
+      res.status(400).json({
+        success: false,
+        cached: false,
+        error: 'Invalid barcode',
+      } as BarcodeLookupResponse);
+      return;
+    }
+
+    // Clean barcode - remove any non-numeric characters
+    const cleanBarcode = barcode.replace(/[^0-9]/g, '');
+    if (cleanBarcode.length < 8) {
+      res.status(400).json({
+        success: false,
+        cached: false,
+        error: 'Invalid barcode format',
+      } as BarcodeLookupResponse);
+      return;
+    }
+
+    // Validate required fields
+    if (!name || !category) {
+      res.status(400).json({
+        success: false,
+        cached: false,
+        error: 'Missing required fields: name and category are required',
+      } as BarcodeLookupResponse);
+      return;
+    }
+
+    console.log(`[Barcode] Saving product for barcode ${cleanBarcode}: ${name}`);
+
+    // Get user ID from auth context (set by requireAuth middleware)
+    const userId = req.userId || 'anonymous';
+
+    // Save product to cache
+    await getDatabase().saveProduct({
+      barcode: cleanBarcode,
+      name,
+      brand,
+      category,
+      imageUrl,
+      source: 'manual_entry',
+    });
+
+    // Create pantry item
+    const newItem = await getDatabase().createItem(userId, {
+      name,
+      quantity,
+      unit,
+      category,
+      barcode: cleanBarcode,
+    });
+
+    console.log(`[Barcode] Created pantry item for ${cleanBarcode}: ${newItem.id}`);
+
+    res.status(201).json({
+      success: true,
+      cached: true,
+      product: {
+        barcode: cleanBarcode,
+        name,
+        brand,
+        category,
+        imageUrl,
+        source: 'manual_entry',
+        infoLastSynced: new Date().toISOString(),
+      },
+      item: newItem,
+    });
+  } catch (error) {
+    console.error('[POST /barcode/:barcode] Error:', error);
+    res.status(500).json({
+      success: false,
+      cached: false,
+      error: 'Internal server error',
+    } as BarcodeLookupResponse);
+  }
+});
+
+/**
  * GET /api/barcode/:barcode
  * Look up product information by barcode
  * Checks local cache first, falls back to Open Food Facts API

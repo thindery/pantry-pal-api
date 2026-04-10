@@ -210,7 +210,7 @@ app.get('/api', (_req: Request, res: Response) => {
 app.use('/api/items', itemsRouter);
 app.use('/api/activities', activitiesRouter);
 app.use('/api/subscription', subscriptionRouter);
-app.use('/api/products/barcode', barcodeRouter);
+app.use('/api/barcode', barcodeRouter);
 app.use('/api/errors', errorRouter);
 app.use('/api/client-errors', clientErrorsRouter);
 app.use('/api/receipts', receiptsRouter);
