@@ -1,5 +1,7 @@
 # PantryPal API - AGENTS.md
 
+**⚠️ IMPORTANT:** When working on REMY-XXX tickets, read `~/projects/remy-tracker/REMY-AGENT.md` first for ticket workflow guidelines.
+
 ## Project Overview
 
 **PantryPal API** is the backend service for the PantryPal inventory tracking system. This repo contains the REST API, database layer, authentication, and business logic. It serves the `pantry-pal` frontend React app.
