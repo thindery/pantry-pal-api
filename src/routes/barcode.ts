@@ -46,7 +46,7 @@ interface OpenFoodFactsResponse {
 
 const OPEN_FOOD_FACTS_API = 'https://world.openfoodfacts.org/api/v0/product';
 const PRODUCT_CACHE_MAX_AGE_DAYS = parseInt(
-  process.env.PRODUCT_CACHE_MAX_AGE_DAYS || '1',
+  process.env.PRODUCT_CACHE_MAX_AGE_DAYS || '7',
   10
 );
 
@@ -345,32 +345,51 @@ router.get('/:barcode', async (req, res) => {
       return;
     }
 
-    // Step 2: Check if there's stale cache (for optional retrieval)
+    // Step 2: Check if there's stale cache
     const staleProduct = await getDatabase().getProductByBarcode(cleanBarcode); // no maxAgeDays
-    const isStale = staleProduct !== null;
 
-    if (isStale) {
-      console.log(`[Barcode] Stale cache found for ${cleanBarcode}, refreshing...`);
+    if (staleProduct) {
+      console.log(`[Barcode] Stale cache found for ${cleanBarcode}, returning immediately and refreshing in background...`);
+
+      // Background refresh: do NOT await
+      (async () => {
+        try {
+          console.log(`[Barcode] Background refresh starting for ${cleanBarcode}...`);
+          const result = await lookupOpenFoodFacts(cleanBarcode);
+          if (result.success && result.product) {
+            await getDatabase().saveProduct({
+              barcode: result.product.barcode,
+              name: result.product.name,
+              brand: result.product.brand,
+              category: result.product.category,
+              imageUrl: result.product.imageUrl,
+              ingredients: result.product.ingredients,
+              nutrition: result.product.nutrition,
+              source: result.product.source,
+            });
+            console.log(`[Barcode] Background refresh successful for ${cleanBarcode}`);
+          } else {
+            console.warn(`[Barcode] Background refresh failed for ${cleanBarcode}: ${result.error}`);
+          }
+        } catch (err) {
+          console.error(`[Barcode] Background refresh error for ${cleanBarcode}:`, err);
+        }
+      })();
+
+      res.json({
+        success: true,
+        cached: true,
+        stale: true,
+        product: staleProduct,
+      } as BarcodeLookupResponse);
+      return;
     }
 
-    // Step 3: Call Open Food Facts API
+    // Step 3: Call Open Food Facts API (no cache at all)
     console.log(`[Barcode] Cache miss for ${cleanBarcode}, calling API...`);
     const result = await lookupOpenFoodFacts(cleanBarcode);
 
     if (!result.success || !result.product) {
-      // If we have stale cache and API failed, return stale cache
-      if (isStale) {
-        console.log(`[Barcode] API failed, returning stale cache for ${cleanBarcode}`);
-        res.json({
-          success: true,
-          cached: true,
-          stale: true,
-          product: staleProduct,
-        } as BarcodeLookupResponse);
-        return;
-      }
-
-      // API failed and no cache
       res.status(404).json(result);
       return;
     }
