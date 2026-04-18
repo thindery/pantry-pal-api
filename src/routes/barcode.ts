@@ -102,6 +102,11 @@ async function lookupOpenFoodFacts(barcode: string): Promise<BarcodeLookupRespon
     const categories = product.categories?.toLowerCase() || '';
     const pnnsGroups = product.pnns_groups_1?.toLowerCase() || '';
 
+    // Debug: Log raw categories for investigation
+    console.log(`[Barcode Debug] Barcode: ${barcode}`);
+    console.log(`[Barcode Debug] Categories: ${product.categories}`);
+    console.log(`[Barcode Debug] PNNS Groups: ${product.pnns_groups_1}`);
+
     if (
       categories.includes('produce') ||
       categories.includes('fruit') ||
@@ -124,6 +129,17 @@ async function lookupOpenFoodFacts(barcode: string): Promise<BarcodeLookupRespon
       pnnsGroups.includes('fish')
     ) {
       category = 'meat';
+    } else if (
+      // Canned foods and pasta should be pantry, not beverages
+      categories.includes('canned') ||
+      categories.includes('pasta') ||
+      categories.includes('ready meals') ||
+      categories.includes('prepared meals') ||
+      categories.includes('soups') ||
+      pnnsGroups.includes('pasta') ||
+      pnnsGroups.includes('canned')
+    ) {
+      category = 'pantry';
     } else if (
       categories.includes('beverage') ||
       pnnsGroups.includes('beverages') ||
